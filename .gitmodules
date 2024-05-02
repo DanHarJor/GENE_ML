@@ -1,0 +1,4 @@
+[submodule "enchanted-surrogates"]
+	path = enchanted-surrogates
+	url = https://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@github.com/DIGIfusion/enchanted-surrogates
+	branch = feature/GENE
