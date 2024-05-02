@@ -49,3 +49,5 @@ if __name__ == '__main__':
     data_set = DATAset('100_3p')
     df = data_set.load_from_remote('lumi:/scratch/project_462000451/gene_out/ped2_safescan/scanfiles0012/scan.log')
     print(df)
+
+    
