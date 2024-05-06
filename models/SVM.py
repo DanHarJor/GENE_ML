@@ -7,5 +7,6 @@ class SVM():
         self.regressor.fit(x, y)
     
     def predict(self, x):
-        return self.regressor.predict(x)
+        # should return a prediction and its errors if available
+        return self.regressor.predict(x), None
     
