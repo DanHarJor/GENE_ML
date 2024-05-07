@@ -8,5 +8,5 @@ class SVM():
     
     def predict(self, x):
         # should return a prediction and its errors if available
-        return self.regressor.predict(x), None
+        return self.regressor.predict(x)
     
