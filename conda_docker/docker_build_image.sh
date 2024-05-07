@@ -1,0 +1,1 @@
+docker build -t gene_ml_image .
