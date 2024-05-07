@@ -16,9 +16,7 @@ class Uniform():
         samples = {}
         for param, bound in zip(self.parameters,self.bounds):
             samples[param] = num_gen.uniform(*bound, self.num_samples)
-
         self.samples = samples
-
         return samples
     
     def get_next_sample(self):
