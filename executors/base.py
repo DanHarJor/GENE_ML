@@ -12,10 +12,10 @@ def run_simulation_task(runner_args, params_from_sampler, base_run_dir):
 
 
 class Executor(ABC):
-    def __init__(self, sampler, runner_args, base_run_dir, *args, **kwargs):
+    def __init__(self, sampler, runner, base_run_dir, *args, **kwargs):
         print("Starting Execution")
         self.sampler = sampler
-        self.runner_args = runner_args
+        self.runner = runner
         self.base_run_dir = base_run_dir
         #self.config_filepath = config_filepath
 
