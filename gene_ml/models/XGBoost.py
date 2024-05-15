@@ -1,8 +1,9 @@
+from .base import Model
 from GPy.models import GPRegression
 from GPy.kern import RBF
 import numpy as np
 
-class GPR():
+class GPR(Model):
     def __init__(self):
         self.regressor = None
 
