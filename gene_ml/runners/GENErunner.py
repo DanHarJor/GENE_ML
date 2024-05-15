@@ -54,7 +54,7 @@ class GENErunner():
     def code_run(self, samples, id):
         if not os.path.exists('temp/'):
             os.mkdir('temp/')
-
+        os.system('rm temp/*')
         print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{id}')
         self.parser.write_input_file(samples, run_dir='temp/', file_name=f'parameters_{id}')
         print(f'GENERATING SBATCH FROM PARAMETERS FILE at temp/sbatch_{id}')

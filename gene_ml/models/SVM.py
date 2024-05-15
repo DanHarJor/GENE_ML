@@ -1,6 +1,7 @@
+from .base import Model
 from sklearn import svm 
 
-class SVM():
+class SVM(Model):
     def __init__(self):
         self.regressor = svm.SVR()
     def train(self, x, y):

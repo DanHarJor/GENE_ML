@@ -1,8 +1,16 @@
+try:
+    from .base import Model
+except:
+    try:
+        from base import Model
+    except:
+        raise ImportError 
+
 from GPy.models import GPRegression
 from GPy.kern import RBF
 import numpy as np
 
-class GPR():
+class GPR(Model):
     def __init__(self):
         self.regressor = None
 
@@ -25,6 +33,8 @@ class GPR():
         # print(y_predict.shape)
         # print(y_predict) 
         return y_predict[:,0], y_error[:,0]
+    
+    
     
 if __name__ == '__main__':
     print('hello world')
