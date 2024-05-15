@@ -9,5 +9,7 @@ COPY gene_ml_conda.sh /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_cond
 COPY docker_ssh_config /root/.ssh/config 
 VOLUME /home/djdaniel/
 WORKDIR /home/djdaniel/
+# RUN conda create -n gene_ml -c conda-forge -c pytorch -c anaconda optuna ipykernel matplotlib pandas numpy scikit-learn tqdm nb_conda_kernels f90nml xgboost -y
 RUN /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_conda.sh
+# RUN pip install GPy==1.13.1
 RUN apt-get update && apt-get install vim -y
