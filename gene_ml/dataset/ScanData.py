@@ -42,12 +42,8 @@ class ScanData(DataSet):
             self.df = self.load_from_file(self.scan_log_path)
             self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df)
             
-        # elif os.path.isdir(self.scan_log_path):
-        print('\nLOADING SCANLOG/S')#BATCHES FROM SCANLOG DIR')
+        print('\nLOADING SCANLOG/S')
         self.df, n_samp, n_requested, n_samp_nonan = self.load_from_dir(self.scan_log_path)
-
-        # else: 
-        #     raise FileNotFoundError        
 
         print(f'\n{n_samp} SAMPLES RAN OUT OF {n_requested} BEFORE MAX WALLTIME:')
         print("NUMBER OF SAMPLES AFTER REMOVING NaN's:", n_samp_nonan)
