@@ -1,6 +1,6 @@
 # sampler/uniform.py
 import numpy as np
-class Uniform():
+class Gaussian():
     """
     DOCSTRING
     """
@@ -17,12 +17,14 @@ class Uniform():
         samples = {}
         for param, bound in zip(self.parameters,self.bounds):
             if type(bound) == type((0.1,0.1)):
-                samples[param] = num_gen.uniform(*bound, self.num_samples)
+                conf_95 = (bound[1]-bound[0])*0.5 #length from the mean to 95%confidance interval. Assuming bounds given are the limits of the 95%confidance interval
+                mean = bound[0]+(bound[1]-bound[0])*0.5 # if gaussian mean is center of bounds. 
+                samples[param] = num_gen.normal(loc=mean, scale=conf_95/2, size=self.num_samples)
             elif type(bound) == type(0.1): #if bound is a float then it is static and not scanned.
                 samples[param] = np.repeat(bound, self.num_samples)
         self.samples = samples
         return samples
-    
+            
     def get_next_sample(self):
         if self.current_index < len(self.samples):
             sample_dict = {key: value[self.current_index] for (key, value) in self.sample.items()}
