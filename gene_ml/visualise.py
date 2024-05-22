@@ -4,11 +4,16 @@ import numpy as np
 
 def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err=None):
     mse=np.mean((y_true-y_predicted)**2)
-    cb = ax.scatter(y_true, y_predicted, marker='.')#, c=y_pred_err, cmap='summer')
+    cb = ax.scatter(y_true, y_predicted, marker='.', c=y_pred_err, cmap='summer')
     if type(y_pred_err)!=type(None):
-        # fig.colorbar(cb, ax=ax)
         ax.errorbar(y_true, y_predicted, yerr=y_pred_err, fmt='.', ecolor='red')
-    
+        cb = ax.scatter(y_true, y_predicted, marker='.', c=y_pred_err, cmap='summer', zorder=10)
+        fig.colorbar(cb, ax=ax)
+        
+    else:
+        ax.scatter(y_true, y_predicted, marker='.')
+     
+
     print('MAX',np.max(y_true),np.max(y_predicted))
     ref = np.linspace(np.min((np.min(y_true),np.min(y_predicted))),np.max((np.max(y_true),np.max(y_predicted))), 100).astype(float)
     print(np.max(ref))
@@ -18,7 +23,7 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
     if title != None:
         ax.set_title(title)
     ax.annotate(f'MSE: {Decimal(mse):.2E}',
-            xy=(.65, .02), xycoords='axes fraction',fontsize=10)
+            xy=(.6, .02), xycoords='axes fraction',fontsize=10)
 
 def residual_hist(ax, fig, y_true, y_predicted, var_name, title=None, bins=50):
     ax.hist(y_true-y_predicted, density=True, bins=bins)
