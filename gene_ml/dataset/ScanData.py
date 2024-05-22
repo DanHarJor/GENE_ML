@@ -37,19 +37,10 @@ class ScanData(DataSet):
         if remote_path!=None:
             self.retrieve_remote_logs(ssh_path)
 
-<<<<<<< HEAD
         if os.path.isfile(self.scan_log_path):
             print('\nLOADING FROM SCANLOG FILE')
             self.df = self.load_from_file(self.scan_log_path)
             self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df)
-=======
-        if not os.path.exists(self.scan_log_path): raise FileNotFoundError
-
-        # if os.path.isfile(self.scan_log_path):
-        #     print('\nLOADING FROM SCANLOG FILE')
-        #     self.df = self.load_from_file(self.scan_log_path)
-        #     self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df)
->>>>>>> 65d54fc9f5ef14278c751fad9eefe27f47f1eff6
             
         # elif os.path.isdir(self.scan_log_path):
         print('\nLOADING SCANLOG/S')#BATCHES FROM SCANLOG DIR')

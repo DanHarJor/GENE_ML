@@ -5,6 +5,9 @@ class Results():
         self.name = name
         self.growthrate_predict_seen = None
         self.growthrate_predict_unseen = None
+        self.growthrate_predict_seen_errors = None
+        self.growthrate_predict_unseen_errors = None
+        
 
         if not os.path.exists('saved_results'):
             os.mkdir('saved_results')
@@ -14,4 +17,4 @@ class Results():
         pickle.dump(self, open(self.path, 'wb'))
 
     def load(self):
-        self = pickle.load(open(self.path, 'rb'))
+        return pickle.load(open(self.path, 'rb'))
