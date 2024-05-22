@@ -5,11 +5,15 @@
 FROM continuumio/miniconda3
 # I had issues with file not found when trying to get the run to work. This copy was the only fix I could get to make it work.
 #COPY <host_src> <container_dest>
-COPY gene_ml_conda.sh /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_conda.sh
+COPY gene_ml_env_stable.yml /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_env_stable.yml
+COPY gene_ml_load_conda.sh /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_load_conda.sh
 COPY docker_ssh_config /root/.ssh/config 
+#ssh key copy
+COPY lumi_danieljordan /root/.ssh/lumi_danieljordan 
+
 VOLUME /home/djdaniel/
 WORKDIR /home/djdaniel/
 # RUN conda create -n gene_ml -c conda-forge -c pytorch -c anaconda optuna ipykernel matplotlib pandas numpy scikit-learn tqdm nb_conda_kernels f90nml xgboost -y
-RUN /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_conda.sh
+RUN /home/djdaniel/DEEPlasma/GENE_ML/conda_docker/gene_ml_load_conda.sh
 # RUN pip install GPy==1.13.1
 RUN apt-get update && apt-get install vim -y

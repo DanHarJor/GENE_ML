@@ -1,3 +1,4 @@
 Host lumi
 	HostName lumi.csc.fi
 	User danieljordan
+	IdentityFile ~/.ssh/lumi_danieljordan
