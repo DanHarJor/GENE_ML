@@ -22,7 +22,7 @@ class GENEparser():
         Reads the output file to python format
 
     """
-    def __init__(self, base_params_dir, remote_save_dir):
+    def __init__(self, base_params_dir=None, remote_save_dir=None):
         """
         Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
 
@@ -36,8 +36,10 @@ class GENEparser():
         -------
             Nothing 
         """
-        self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
-        self.remote_save_dir = remote_save_dir
+        if base_params_dir!=None:
+            self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
+        if remote_save_dir != None:
+            self.remote_save_dir = remote_save_dir
 
 class GENE_single_parser(GENEparser):
 
@@ -193,7 +195,8 @@ class GENE_scan_parser(GENEparser):
         last_two = head[-1].split('/')
         del head[-1]
         head = head + last_two
-        
+        head = [h.replace(' ','') for h in head]
+
         df = pd.read_csv(out_path, sep='|',skiprows=1, names=head)
         for i in range(len(df)):
             split = df[head[-1]][i].lstrip().rstrip().split(' ')      
@@ -201,6 +204,7 @@ class GENE_scan_parser(GENEparser):
             frequency.append(split[-1])
         df['growthrate'] = growthrate
         df['frequency'] = frequency
+        
         df = df.drop(columns=[head[0],head[-1]])
         return df
 
