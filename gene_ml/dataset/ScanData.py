@@ -28,12 +28,14 @@ class ScanData(DataSet):
         self.remote_path = remote_path
         ssh_path = f"{host}:{remote_path}"
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
-        if not os.path.exists(self.scan_log_path): os.mkdir(self.scan_log_path)
+        # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
+
+        if not os.path.exists(self.scan_log_path): 
+            print('MAKING SCANLOG DIR') 
+            os.mkdir(self.scan_log_path)
 
         if remote_path!=None:
             self.retrieve_remote_logs(ssh_path)
-
-        if not os.path.exists(self.scan_log_path): raise FileNotFoundError
 
         if os.path.isfile(self.scan_log_path):
             print('\nLOADING FROM SCANLOG FILE')
