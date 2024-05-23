@@ -24,12 +24,21 @@ class ScanData(DataSet):
         self.parser = parser
         self.host=host
         self.remote_path = remote_path
+
         self.test_percentage=test_percentage
+
         self.random_state=random_state
         ssh_path = f"{host}:{remote_path}"
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
         # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
 
+<<<<<<< HEAD
+=======
+        if not os.path.exists(os.path.join(os.getcwd(), 'scanlogs')):
+            os.mkdir(os.path.join(os.getcwd(), 'scanlogs'))
+
+
+>>>>>>> a758eea0237e4b3e6070adb4b5295bb72ab01b2a
         if not os.path.exists(self.scan_log_path): 
             print('MAKING SCANLOG DIR') 
             os.mkdir(self.scan_log_path)
@@ -55,6 +64,7 @@ class ScanData(DataSet):
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
         self.split()
+    
     def split(self):    
         print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
