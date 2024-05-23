@@ -24,11 +24,17 @@ class ScanData(DataSet):
         self.parser = parser
         self.host=host
         self.remote_path = remote_path
+
         self.test_percentage=test_percentage
+
         self.random_state=random_state
         ssh_path = f"{host}:{remote_path}"
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
         # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
+
+        if not os.path.exists(os.path.join(os.getcwd(), 'scanlogs')):
+            os.mkdir(os.path.join(os.getcwd(), 'scanlogs'))
+
 
         if not os.path.exists(self.scan_log_path): 
             print('MAKING SCANLOG DIR') 
@@ -42,8 +48,12 @@ class ScanData(DataSet):
             self.df = self.load_from_file(self.scan_log_path)
             self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df)
             
-        print('\nLOADING SCANLOG/S')
+        # elif os.path.isdir(self.scan_log_path):
+        print('\nLOADING SCANLOG/S')#BATCHES FROM SCANLOG DIR')
         self.df, n_samp, n_requested, n_samp_nonan = self.load_from_dir(self.scan_log_path)
+
+        # else: 
+        #     raise FileNotFoundError        
 
         print(f'\n{n_samp} SAMPLES RAN OUT OF {n_requested} BEFORE MAX WALLTIME:')
         print("NUMBER OF SAMPLES AFTER REMOVING NaN's:", n_samp_nonan)
@@ -55,6 +65,7 @@ class ScanData(DataSet):
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
         self.split()
+    
     def split(self):    
         print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
