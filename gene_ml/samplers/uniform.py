@@ -16,10 +16,7 @@ class Uniform():
         num_gen = np.random.default_rng(seed=38756)
         samples = {}
         for param, bound in zip(self.parameters,self.bounds):
-            if type(bound) == type((0.1,0.1)):
-                samples[param] = num_gen.uniform(*bound, self.num_samples)
-            elif type(bound) == type(0.1): #if bound is a float then it is static and not scanned.
-                samples[param] = np.repeat(bound, self.num_samples)
+            samples[param] = num_gen.uniform(*bound, self.num_samples)
         self.samples = samples
         return samples
     

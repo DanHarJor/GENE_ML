@@ -128,45 +128,55 @@ class GENE_scan_parser(GENEparser):
             # print('START',namelist_string[var_start],'END',namelist_string[var_end])
             return var_end
 
-        # Making kymin scanlist
-        kymin = params['box-kymin']
-        scanlist = f'      !scanlist: {kymin[0]}'
-        for ky in kymin[1:]:
-            scanlist += f', {ky}'
-        var_end = var_end_loc(namelist_string, 'box-kymin')
-        namelist_string = namelist_string[:var_end] + scanlist + namelist_string[var_end:]
+        def make_scanlist(values):
+        # Making scanlist
+            scanlist = f'      !scanlist: {values[0]}'
+            for v in values[1:]:
+                scanlist += f', {v}'
+            return scanlist
         #----------------------
         
         #determines the ordinal position of the scanned paramters for var_name
-        def var_ordinal(namelist,var_name):
-            namelist_string = str(namelist)
-            kymin_loc = namelist_string.find(var_name)
-            var_ordinal = namelist_string[:kymin_loc].count('!scan')
-            return var_ordinal
+        def var_ordinal(param_key):
+            group, var_name = param_key.split('-')
+            group_split = group.split('_')
+            if len(group_split)>1:
+                group_name = group_split[-2]
+                group_ord = int(group_split[-1])+1
+            else:
+                group_name = group
+                group_ord = 1
 
-        def make_scanwith(namelist, values):
-            kymin_loc = var_ordinal(namelist, 'kymin')
-            # print(f'Generating scanwith string for {var_name}')
-            
-            # print('VALUES',values)
-            scanwith = f'       !scanwith: {kymin_loc}, {values[0]}'
+            gloc = find_nth_occurrence(namelist_string, group_name, group_ord)
+            vloc = gloc + namelist_string[gloc:].find(var_name)
+            var_ordinal = namelist_string[:vloc].count('=')+1
+            return var_ordinal
+        
+        #check which parameter is the first to be scanned and make is a scanlist
+        ordinals = {k:var_ordinal(k) for k in params.keys()}
+        first_param = None
+        first_param_ord = np.inf
+        for k,ord in ordinals.items():
+            if ord < first_param_ord: 
+                first_param_ord = ord
+                first_param = k
+        
+        def make_scanwith(values):
+            scanwith = f'       !scanwith: 0, {values[0]}'
             for v in values[1:]:
                 scanwith += f', {v}'
             return scanwith
 
-        scanwith = {}
-        params.pop('box-kymin')
-        for var_name in params.keys():
-            scanwith[var_name] = make_scanwith(namelist, values=params[var_name])
-        # print('SCANWITH',scanwith)
-            # finds the string location at the end of the line for a variable, just before \n
-        
-        
+        scanwith = {k:make_scanwith(values) for k,values in params.items()}
+        # Add scanwith to each variable with and scanlist to the first one
         for param_key in list(params.keys()):
-            var_end = var_end_loc(namelist_string,param_key)
-            namelist_string = namelist_string[:var_end] + scanwith[param_key] + namelist_string[var_end:]
-        # print(namelist_string)        
-        
+            if param_key == first_param:
+                var_end = var_end_loc(namelist_string,param_key)
+                namelist_string = namelist_string[:var_end] + make_scanlist(params[param_key]) + namelist_string[var_end:]
+            else:
+                var_end = var_end_loc(namelist_string,param_key)
+                namelist_string = namelist_string[:var_end] + scanwith[param_key] + namelist_string[var_end:]
+                
         # placing in the remote save directory
         lines = namelist_string.split('\n')
         for line, i in zip(lines, np.arange(len(lines))):
@@ -214,8 +224,8 @@ if __name__ == '__main__':
     # params = {'box-kymin':100.1, '_grp_species_0-omt': 2.75, '_grp_species_1-omt':5.1}
     generator = np.random.default_rng(seed=238476592)
     omn = generator.uniform(5,60,5)
-    params = {'box-kymin':generator.uniform(0.05,1,5),
-          'species-omnmmmmm':omn,
+    # 'box-kymin':generator.uniform(0.05,1,5)
+    params = {'species-omn':omn,
           '_grp_species_1-omt':generator.uniform(10,70,5)}
-    parser = GENE_scan_parser(base_params_dir = os.path.join(os.getcwd(),'parameters_base_dp'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
+    parser = GENE_scan_parser(base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
     parser.write_input_file(params,run_dir=os.getcwd(),file_name='parameters_scanwith')
