@@ -1,0 +1,3 @@
+[submodule "gene_ml/static_sparse_grid_approximations"]
+	path = gene_ml/static_sparse_grid_approximations
+	url = https://github.com/ionutfarcas/static_sparse_grid_approximations
