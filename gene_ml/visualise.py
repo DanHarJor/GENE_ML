@@ -21,7 +21,7 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
     ax.set_xlabel(f'Parent Model {var_name}')
     ax.set_ylabel(f'Surrogate Model {var_name}')
     if title != None:
-        ax.set_title(title)
+        ax.set_title(f'{title}: {len(y_true)} data points')
     ax.annotate(f'MSE: {Decimal(mse):.2E}',
             xy=(.6, .02), xycoords='axes fraction',fontsize=10)
 
