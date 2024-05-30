@@ -5,10 +5,10 @@ import sys
 from os import getcwd
 from os import path
 
-pathap = path.join('..','static_sparse_grid_approximations','sg_lib')
+pathap = path.join('..','static_sparse_grid_approximations')
 sys.path.append(pathap)
-from grid.grid import Grid #add . for relative import
-from algebraic.multiindex import Multiindex #add . for relative import
+from sg_lib.grid.grid import Grid #add . for relative import
+from sg_lib.algebraic.multiindex import Multiindex #add . for relative import
 
 import numpy as np
 
@@ -32,6 +32,7 @@ class StaticSparseGrid():
         self.left_bounds = np.zeros(self.dim)
         self.right_bounds = np.ones(self.dim)
         ## objects setup
+
         self.Grid_obj = Grid(self.dim, self.level, self.level_to_nodes, self.left_bounds, self.right_bounds, self.weights)	
         self.Multiindex_obj = Multiindex(self.dim)
 
