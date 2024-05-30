@@ -11,7 +11,12 @@ from GPy.kern import RBF
 import numpy as np
 
 class GPR(Model):
+<<<<<<< HEAD
     def __init__(self):
+=======
+    def __init__(self, name):
+        super().__init__(name)
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
         self.regressor = None
 
     def train(self, x, y):
@@ -30,8 +35,8 @@ class GPR(Model):
     
     def predict(self, x):
         y_predict, y_error = self.regressor.predict(np.array(x))
-        # print(y_predict.shape)
-        # print(y_predict) 
+        print(y_predict.shape)
+        print(y_predict) 
         return y_predict[:,0], y_error[:,0]
     
     

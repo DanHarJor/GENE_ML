@@ -1,4 +1,3 @@
-[submodule "enchanted-surrogates"]
-	path = enchanted-surrogates
-	url = https://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@github.com/DIGIfusion/enchanted-surrogates
-	branch = feature/GENE
+[submodule "gene_ml/static_sparse_grid_approximations"]
+	path = gene_ml/static_sparse_grid_approximations
+	url = https://github.com/ionutfarcas/static_sparse_grid_approximations
