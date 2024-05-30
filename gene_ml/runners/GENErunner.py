@@ -37,7 +37,7 @@ class GENErunner():
             if '#SBATCH -t' in sbatch_lines[i]: 
                 wall_loc = i
                 break
-        sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallclock limit, dd:hh:mm:ss"
+        sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallclock limit, dd-hh:mm:ss"
 
         sbatch = "\n".join(sbatch_lines)
         if not os.path.exists('temp/'): os.mkdir('temp/')

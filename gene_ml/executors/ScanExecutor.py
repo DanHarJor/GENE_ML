@@ -11,7 +11,7 @@ class ScanExecutor():
 
     def start_runs(self):
         #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
-        batches = {k:np.split(v,self.num_workers) for k,v in self.sampler.samples.items()}
+        batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
         batches = [{k:v[i] for k,v in batches.items()} for i in range(self.num_workers)]
         print(100 * "=")
         self.runner.clean() #removes any directories within the remote_run_dir that the runner creates, so it starts fresh

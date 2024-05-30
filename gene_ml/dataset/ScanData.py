@@ -19,33 +19,62 @@ class ScanData(DataSet):
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
         The remote path needs needs to point to either a diectory that contains the scanfile* folders from a GENE scan or a specific scan.log file.
         '''
+<<<<<<< HEAD
         
         
+=======
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
         print('Initialising dataset')
         self.name = name
         self.parser = parser
         self.host=host
         self.remote_path = remote_path
+<<<<<<< HEAD
         ssh_path = f"{host}:{remote_path}"
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
         if not os.path.exists(self.scan_log_path): os.mkdir(self.scan_log_path)
+=======
+
+        self.test_percentage=test_percentage
+
+        self.random_state=random_state
+        ssh_path = f"{host}:{remote_path}"
+        self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
+        # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
+
+        if not os.path.exists(os.path.join(os.getcwd(), 'scanlogs')):
+            os.mkdir(os.path.join(os.getcwd(), 'scanlogs'))
+
+
+        if not os.path.exists(self.scan_log_path): 
+            print('MAKING SCANLOG DIR') 
+            os.mkdir(self.scan_log_path)
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
 
         if remote_path!=None:
             self.retrieve_remote_logs(ssh_path)
 
+<<<<<<< HEAD
         if not os.path.exists(self.scan_log_path): raise FileNotFoundError
 
+=======
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
         if os.path.isfile(self.scan_log_path):
             print('\nLOADING FROM SCANLOG FILE')
             self.df = self.load_from_file(self.scan_log_path)
             self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df)
             
+<<<<<<< HEAD
         elif os.path.isdir(self.scan_log_path):
             print('\nLOADING BATCHES FROM SCANLOG DIR')
             self.df, n_samp, n_requested, n_samp_nonan = self.load_from_dir(self.scan_log_path)
 
         else: 
             raise FileNotFoundError        
+=======
+        print('\nLOADING SCANLOG/S')
+        self.df, n_samp, n_requested, n_samp_nonan = self.load_from_dir(self.scan_log_path)
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
 
         print(f'\n{n_samp} SAMPLES RAN OUT OF {n_requested} BEFORE MAX WALLTIME:')
         print("NUMBER OF SAMPLES AFTER REMOVING NaN's:", n_samp_nonan)
@@ -56,12 +85,23 @@ class ScanData(DataSet):
         self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
+<<<<<<< HEAD
         
         print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {test_percentage}% test, {100-test_percentage} training.')
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=test_percentage/100, random_state=random_state)
 
 
     def load_from_file(self,data_path, verbose=True):
+=======
+        self.split()
+    
+    def split(self):    
+        print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
+        self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
+
+
+    def load_from_file(self,data_path):
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
         print(f'\nLOADING SCANLOG INTO PYTHON {data_path}')
         df = self.parser.read_output_file(data_path)
         return df
@@ -70,7 +110,13 @@ class ScanData(DataSet):
         print('\nRETRIEVING SCANLOG/S VIA scp FROM REMOTE')
         print(f'SCANLOG PATH: {ssh_path}')
         # subprocess.run(['scp','-r',ssh_path, self.scan_log_path])
+<<<<<<< HEAD
         if 'scan.log' in self.scan_log_path: #Then we are only taking one file
+=======
+        # print('\n\nDEBUG\n\n',self.scan_log_path, type(self.scan_log_path), str(self.scan_log_path))
+        if 'scan.log' in ssh_path: #Then we are only taking one file
+            print('RETRIVING REMOTE FILE')
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
             os.system(f'scp -r {ssh_path} {self.scan_log_path}')
         else: # we should have a directory and need to take all scan logs
             print('RETRIVING FROM REMOTE DIR')
@@ -94,6 +140,10 @@ class ScanData(DataSet):
         
         dfs, n_samp_all, n_requested_all, n_samp_nonan_all = [], [], [], []
         for scanlog in os.listdir(data_path):
+<<<<<<< HEAD
+=======
+            print()
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
             df = self.load_from_file(os.path.join(data_path,scanlog))
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
@@ -112,6 +162,15 @@ class ScanData(DataSet):
         df = df.loc[nan_mask]
         n_samp_nonan = len(df)
         return df, n_samp, n_requested, n_samp_nonan
+<<<<<<< HEAD
+=======
+    
+    def remove_parameter(self, parameter_name):
+        self.df = self.df.drop(columns=[parameter_name])
+        self.head = list(self.df.columns)
+        self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.split()
+>>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
 
 if __name__ == '__main__':
     sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/gene_ml')
