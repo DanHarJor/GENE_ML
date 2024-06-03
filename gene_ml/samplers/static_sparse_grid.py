@@ -27,8 +27,9 @@ class StaticSparseGrid():
         self.dim=len(bounds)
         self.bounds=bounds
         self.left_stoch_boundary, self.right_stoch_boundary = zip(*self.bounds)
+        self.left_stoch_boundary, self.right_stoch_boundary = np.array(self.left_stoch_boundary), np.array(self.right_stoch_boundary)
         ### setup for the standard uniform distribution, taken from ionuts config file
-        self.weights = [lambda x: 1. for d in range(self.dim)]
+        self.weights = [lambda x: 1. for d in range(self.dim)]# for uniform dist
         self.left_bounds = np.zeros(self.dim)
         self.right_bounds = np.ones(self.dim)
         ## objects setup
@@ -38,15 +39,33 @@ class StaticSparseGrid():
 
 
         self.parameters = parameters
-        self.samples, self.num_samples = self.generate_parameters()
+        self.samples, self.num_samples, self.samples_array, self.samples_array_norm = self.generate_parameters()
+        
         self.current_index = 0
 
     def generate_parameters(self):
         ## sparse grid multi-index set 
         multiindex_set = self.Multiindex_obj.get_std_total_degree_mindex(self.level)
         ## first, we get the grid points in [0, 1]^dim
-        std_sg_points = self.Grid_obj.get_std_sg_surplus_points(multiindex_set)
-        num_samples = std_sg_points.shape[0]
+        # std_sg_points = self.Grid_obj.get_std_sg_surplus_points(multiindex_set)
+        std_sg_points = []
+        for m, multiindex in enumerate(multiindex_set):
+            mindex_grid_inputs = self.Grid_obj.get_sg_surplus_points_multiindex(multiindex)
+            std_sg_points.append(mindex_grid_inputs)
+        std_sg_points = np.concatenate(std_sg_points)
+        
+        std_sg_points2 = []
+        for m, multiindex in enumerate(multiindex_set):
+            mindex_grid_inputs = self.Grid_obj.get_sg_surplus_points_multiindex(multiindex)
+            std_sg_points2.append(mindex_grid_inputs)
+        std_sg_points2 = np.concatenate(std_sg_points2)
+
+        for p in zip(std_sg_points, std_sg_points2):
+            print('\nP',p)
+
+        print('POINTS SHAPE',std_sg_points.shape)
+        num_samples = std_sg_points.shape[0]        
+
         print("\033[1m no points for dim = {} and level = {} is n = {}\033[0m".format(self.dim, self.level, num_samples))
         ## we then map the grid points to our domain of interest
         # returns a list of lists, each sublist is a set of points
@@ -61,7 +80,7 @@ class StaticSparseGrid():
                 samples[param].append(point[i])
                 i+=1
         samples = {k:np.array(v) for k,v in samples.items()}
-        return samples, num_samples
+        return samples, num_samples, mapped_sg_points, std_sg_points
 
     def get_next_parameter(self):
         if self.current_index < len(self.samples):
@@ -69,12 +88,12 @@ class StaticSparseGrid():
             self.current_index += 1
             return param_dict
         else:
-            return None  # TODO: implement when done iterating!
+            return False  # TODO: implement when done iterating!
 
 if __name__ == '__main__':
     parameters = ['love', 'peace', 'harmony']
     bounds = [(1,2),(300,400),(5000,6000)]
-    samp = StaticSparseGrid(bounds, parameters, level=3)
+    samp = StaticSparseGrid(bounds, parameters, level=3, level_to_nodes=2)
     print(samp.samples)
     
     # for _ in range(samp.num_samples):
