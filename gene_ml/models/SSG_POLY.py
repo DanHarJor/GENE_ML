@@ -1,8 +1,11 @@
 from base import Model
 import sys
 import os
-pathap = os.path.join('GENE_ML','gene_ml','static_sparse_grid_approximations')
-sys.path.append(pathap)
+
+# os.system("export PYTHONPATH=$PYTHONPATH:/home/djdaniel/GENE_UQ/GENE_ML/gene_ml/static_sparse_grid_approximations")
+
+# pathap = os.path.join('home','djdaniel','GENE_UQ','GENE_ML','gene_ml','static_sparse_grid_approximations', 'sg_lib')
+# sys.path.append(pathap)
 
 from sg_lib.grid.grid import *
 from sg_lib.algebraic.multiindex import *
@@ -13,46 +16,63 @@ import numpy as np
 class SSG_POLY(Model):
     def __init__(self, ssg_sampler):        
         self.InterpToSpectral_obj = InterpolationToSpectral(ssg_sampler.dim, ssg_sampler.level_to_nodes, ssg_sampler.left_bounds, ssg_sampler.right_bounds, ssg_sampler.weights, ssg_sampler.level, ssg_sampler.Grid_obj)
-
         self.multiindex_set = ssg_sampler.Multiindex_obj.get_std_total_degree_mindex(ssg_sampler.level)
-    
+        self.ssg_sampler = ssg_sampler
     def train(self, x, y):
+        i = 0
+        y_eval_ = []
         for m, multiindex in enumerate(self.multiindex_set):
-            for point, label in zip(x,y):
-                print('X', point)
-                print('Y', label)
-                self.InterpToSpectral_obj.update_sg_evals_all_lut(point,label)
-                print('MULTIINDEX',multiindex)
-            # self.InterpToSpectral_obj.update_sg_evals_multiindex_lut(multiindex, ssg_sampler.Grid_obj)
+            print('MULTI',m,multiindex)
+            mindex_grid_inputs = self.ssg_sampler.Grid_obj.get_sg_surplus_points_multiindex(multiindex)
+            for sg_point_sub in mindex_grid_inputs:
+                print('These should be the same')
+                print('POINT IN SAMPLER SAMPLES', x[i])
+                print('POINT IN mindex subcat', sg_point_sub)
+                y_eval = f_ref(sg_point_sub)
+                y_eval_.append(y_eval)
+                self.InterpToSpectral_obj.update_sg_evals_all_lut(sg_point_sub,y[i])#normalised point goes to unormalised label
+                i += 1
+            self.InterpToSpectral_obj.update_sg_evals_multiindex_lut(multiindex, self.ssg_sampler.Grid_obj)
+        for yi in zip(y_eval_, y):
+            print('YS SHOULD MATCH', yi)
     
     def predict(self, x):
         # should return a prediction and its errors if available
         f_interp = lambda x: self.InterpToSpectral_obj.eval_operation_sg(self.multiindex_set, x)
-        return f_interp(x)
+        #f_interp needs normalised points
+        normalise = lambda x: (x-self.ssg_sampler.left_stoch_boundary) / (self.ssg_sampler.right_stoch_boundary - self.ssg_sampler.left_stoch_boundary)
+        prediction = []
+        for xi in x:
+            prediction.append(f_interp(normalise(xi)))
+        return prediction
 
 if __name__ == '__main__':
-    f_ref = lambda x: x[0]**2 + x[1]**2 + x[2]**3
-    n_train = 10
-    dim = 3
-    x = np.random.uniform(0,1,size=(3,n_train)).T
-    y = f_ref(x)
-    print(x, y)
-    print(x.shape,y.shape)
+    f_ref = lambda x: x[0]**2 + x[1]**2 + x[2]**2 + x[3]**2 + 2*x[2] * x[3] + 3
     
     sys.path.append(os.path.join('GENE_ML','gene_ml'))
     from samplers.static_sparse_grid import StaticSparseGrid
-    parameters = ['love', 'peace', 'harmony']
-    bounds = [(1,2),(300,400),(5000,6000)]
-    ssg_sampler = StaticSparseGrid(bounds, parameters, level=3)
+    parameters = ['temp', 'gradn', 'gradTi','gradTe']
+    bounds = [(0.2,1.3),(-0.4,2.4),(2.,4.),(1.,3.)]
+    ssg_sampler = StaticSparseGrid(parameters=parameters, bounds=bounds, level=3, level_to_nodes=2)
+    print('NUM SAMPLES',ssg_sampler.num_samples)
+
+    x=ssg_sampler.samples_array
+    print('X',x.shape,x)
+    xnorm = ssg_sampler.samples_array_norm
+    print('XNORM',xnorm.shape,xnorm)
+    y = f_ref(x.T)
+
     poly = SSG_POLY(ssg_sampler)
+
     poly.train(x,y)
-    
-    n_test = 50
-    test = np.random.uniform(0,1,size=(3,1000))
-    predicted = poly.predict(test)
-    true = f_ref(test) 
-    print(predicted)
-    print(true)
+
+    left_bounds, right_bounds = [b[0] for b in bounds], [b[1] for b in bounds] 
+    test_points = np.random.uniform(left_bounds, right_bounds, size=(10, 4))
+    # test_points = np.random.uniform(0, 1, size=(10, 4))
+    print('TEST POINTS',test_points)
+    print('test labels', f_ref(test_points.T))
+    print('test predictions', poly.predict(test_points))
+
 
 
         
