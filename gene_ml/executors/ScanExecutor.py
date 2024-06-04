@@ -1,13 +1,14 @@
 import numpy as np
 import sys
 sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/')    
-
+import os
 
 class ScanExecutor():
-    def __init__(self, num_workers, sampler, runner, **kwargs):
+    def __init__(self, num_workers, sampler, runner, remote_save_dir, **kwargs):
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
         self.runner = runner
+        self.remote_save_dir = remote_save_dir
 
     def start_runs(self):
         #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
@@ -17,6 +18,7 @@ class ScanExecutor():
         self.runner.clean() #removes any directories within the remote_run_dir that the runner creates, so it starts fresh
         print("EXECUTING BATCHES")
         for batch, id in zip(batches, np.arange(len(batches))):
+            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'batch_{id}')
             self.runner.code_run(batch, id=id)
 
 if __name__ == '__main__':

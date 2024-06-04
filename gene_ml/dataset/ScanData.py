@@ -60,7 +60,17 @@ class ScanData(DataSet):
         self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
-        self.split()
+        
+        if self.test_percentage == 0:
+            print('TEST PERCENTAGE IS 0, NO SPLIT')
+            self.x_train = self.x
+            self.x_test = None
+            self.x_growthrate_train = self.growthrates
+            self.growthrate_test = None
+            self.frequencies_train = self.frequencies
+            self.frequencies_test = None
+        else:
+            self.split()
     
     def split(self):    
         print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
@@ -82,13 +92,20 @@ class ScanData(DataSet):
             os.system(f'scp -r {ssh_path} {self.scan_log_path}')
         else: # we should have a directory and need to take all scan logs
             print('RETRIVING FROM REMOTE DIR')
-            result = 0
             i = 0
-            while result==0:
-                result = os.system(f"scp '{ssh_path}/scanfiles*{i}/scan.log' {os.path.join(self.scan_log_path,f'scan___{i}.log')}")
+            results = []
+            while True:
+                j=0
+                while True:
+                    results.append(os.system(f"scp '{ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_{i}_{j}.log')}"))
+                    print(results)
+                    j+=1
+                    if results[-3:] == [256,256,256]:
+                        break
                 # result = os.system(f"scp 'lumi:/scratch/project_462000451/gene_out/gene_auto/testing_batchscans/scanfiles*{i}/scan.log' $PWD/scanlogs/testing_batchscans/scan{i}.log")
-    
                 i+=1
+                if results[-6:] == [256,256,256,256,256,256]:
+                    break 
             print('THE ABOVE ERROR IS EXPECTED')
         
         print(f'SCANLOG/S RETRIEVED AND SAVED TO:{self.scan_log_path}')
@@ -101,8 +118,8 @@ class ScanData(DataSet):
         if not os.path.isdir(data_path): raise NotADirectoryError
         
         dfs, n_samp_all, n_requested_all, n_samp_nonan_all = [], [], [], []
-        for scanlog in os.listdir(data_path):
-            print()
+        scanlog_paths = np.sort(np.array(os.listdir(data_path))) 
+        for scanlog in scanlog_paths:
             df = self.load_from_file(os.path.join(data_path,scanlog))
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
@@ -112,8 +129,10 @@ class ScanData(DataSet):
         ## caution, can only work for df created from single file.
         #removing NAN's
         nan_mask = ~np.isnan(df['growthrate'].to_numpy(dtype=float))
-        if len(np.argwhere(nan_mask))>0: n_before_tlimit = int(np.argwhere(nan_mask)[-1])
-        else: n_before_tlimit = 0
+        if len(np.argwhere(nan_mask))>0: 
+            n_before_tlimit = int(np.argwhere(nan_mask)[-1])+1 
+        else: 
+            n_before_tlimit = 0
         n_requested = len(df)
         df = df[0:n_before_tlimit]
         nan_mask = nan_mask[0:n_before_tlimit]
@@ -131,12 +150,13 @@ class ScanData(DataSet):
 if __name__ == '__main__':
     sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/gene_ml')
     from parsers.GENEparser import GENE_scan_parser
-    base_params_path = os.path.join(os.getcwd(),'parameters_base_dp')
+    base_params_path = os.path.join(os.getcwd(),'parameters_base_uq')
     remote_save_dir='/project/project_462000451/gene_out/gene_auto'
     parser = GENE_scan_parser(base_params_path, remote_save_dir)
 
     # ssh_path = None
-    remote_path = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"
+#    remote_path = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
+    remote_path = "/scratch/project_462000451/gene_out/gene_auto/SSG_2p_l3_uq"
     host = 'lumi'
     #data_set = ScanData('100_3p', parser, ssh_path=ssh_path)
     data_set = ScanData('testing_batchscans3', parser, host, remote_path=remote_path)
