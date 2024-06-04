@@ -52,6 +52,12 @@ class GENErunner():
 
 
     def code_run(self, samples, id):
+        # make results directory
+        error_code = os.system(f"ssh {self.host} 'mkdir -p {self.parser.remote_save_dir}'")
+        if error_code != 0: 
+            print('When making the results directory with ssh there was an error')
+            raise SystemError
+
         if not os.path.exists('temp/'):
             os.mkdir('temp/')
         os.system('rm temp/*')

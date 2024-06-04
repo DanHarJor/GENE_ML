@@ -7,41 +7,41 @@ from copy import deepcopy
 import pandas as pd
 
 
-class GENEparser():
-    """An I/O parser for GENE
+# class GENEparser():
+#     """An I/O parser for GENE
 
-     Attributes
-    ----------
+#      Attributes
+#     ----------
 
-    Methods
-    -------
-    write_input_file
-        Writes the inputfile for a single set of parameters.
+#     Methods
+#     -------
+#     write_input_file
+#         Writes the inputfile for a single set of parameters.
 
-    read_output_file
-        Reads the output file to python format
+#     read_output_file
+#         Reads the output file to python format
 
-    """
-    def __init__(self, base_params_dir=None, remote_save_dir=None):
-        """
-        Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
+#     """
+#     def __init__(self, base_params_dir=None, remote_save_dir=None):
+#         """
+#         Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
 
-        Parameters
-        ----------
-            base_params_dir (string or path): The directory pointing to the base GENE parameters file.
-            The base GENE parameters file must contain all parameters necessary for GENE to run.
-            Any parameters to be sampled will be inserted into the base parameter file before each run.
-            Any value of a sampled parameter in the base file will be ignored. 
-        Returns
-        -------
-            Nothing 
-        """
-        if base_params_dir!=None:
-            self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
-        if remote_save_dir != None:
-            self.remote_save_dir = remote_save_dir
+#         Parameters
+#         ----------
+#             base_params_dir (string or path): The directory pointing to the base GENE parameters file.
+#             The base GENE parameters file must contain all parameters necessary for GENE to run.
+#             Any parameters to be sampled will be inserted into the base parameter file before each run.
+#             Any value of a sampled parameter in the base file will be ignored. 
+#         Returns
+#         -------
+#             Nothing 
+#         """
+#         if base_params_dir!=None:
+#             self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
+#         if remote_save_dir != None:
+#             self.remote_save_dir = remote_save_dir
 
-class GENE_single_parser(GENEparser):
+class GENE_single_parser():
 
     def write_input_file(self, params: dict, run_dir):
         """
@@ -87,7 +87,26 @@ class GENE_single_parser(GENEparser):
     def read_output_file(self, run_dir: str):
         raise NotImplementedError
     
-class GENE_scan_parser(GENEparser): 
+class GENE_scan_parser(): 
+    def __init__(self, base_params_dir=None, remote_save_dir=None):
+        """
+        Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
+
+        Parameters
+        ----------
+            base_params_dir (string or path): The directory pointing to the base GENE parameters file.
+            The base GENE parameters file must contain all parameters necessary for GENE to run.
+            Any parameters to be sampled will be inserted into the base parameter file before each run.
+            Any value of a sampled parameter in the base file will be ignored. 
+        Returns
+        -------
+            Nothing 
+        """
+        if base_params_dir!=None:
+            self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
+        if remote_save_dir != None:
+            self.remote_save_dir = remote_save_dir
+
     def write_input_file(self, params: dict, run_dir, file_name='parameters'):
         namelist = self.base_namelist
         namelist_string=str(namelist)

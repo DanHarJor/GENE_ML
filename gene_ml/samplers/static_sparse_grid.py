@@ -53,15 +53,6 @@ class StaticSparseGrid():
             mindex_grid_inputs = self.Grid_obj.get_sg_surplus_points_multiindex(multiindex)
             std_sg_points.append(mindex_grid_inputs)
         std_sg_points = np.concatenate(std_sg_points)
-        
-        std_sg_points2 = []
-        for m, multiindex in enumerate(multiindex_set):
-            mindex_grid_inputs = self.Grid_obj.get_sg_surplus_points_multiindex(multiindex)
-            std_sg_points2.append(mindex_grid_inputs)
-        std_sg_points2 = np.concatenate(std_sg_points2)
-
-        for p in zip(std_sg_points, std_sg_points2):
-            print('\nP',p)
 
         print('POINTS SHAPE',std_sg_points.shape)
         num_samples = std_sg_points.shape[0]        
