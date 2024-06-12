@@ -15,27 +15,30 @@ class NN(nn.Module, Model):
         x = self.linear2(x)
         return x
     
-    def train(self,dataloader,train_batch_size):
+    def train(self,dataloader,n_epochs,train_batch_size):
         loss_fn = nn.MSELoss()
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
 
         size = len(dataloader.dataset)
         num_batches = len(dataloader)
         
-        total_loss = 0.0
+        for i in range(n_epochs):
+            epoch_loss = 0.0
 
-        for batch, (X, y) in enumerate(dataloader):
-            pred = self(X)
-            loss = loss_fn(pred,y)
+            for batch, (X, y) in enumerate(dataloader):
+                pred = self(X)
+                loss = loss_fn(pred,y)
 
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
 
-            loss, current = loss.item(), batch * train_batch_size + len(X)
-            total_loss = total_loss + loss
-            print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
-        total_loss = total_loss/num_batches
-        return total_loss
+                loss, current = loss.item(), batch * train_batch_size + len(X)
+                epoch_loss = epoch_loss + loss
+                print(f"Loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
+            epoch_loss = epoch_loss/num_batches
+            print("--------------------------------")
+            print(f"Epoch {i+1}: loss={epoch_loss:>7f}")
+            print("\n")
 
         
