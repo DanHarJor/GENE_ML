@@ -5,14 +5,18 @@ from .base import Model
 class NN(nn.Module, Model):
     def __init__(self):
         super(NN, self).__init__()
-        self.linear1 = nn.Linear(8,30)
-        self.relu = nn.ReLU()
-        self.linear2 = nn.Linear(30,1)
+        self.linear1 = nn.Linear(8,50)
+        self.relu1 = nn.ReLU()
+        self.linear2 = nn.Linear(50,50)
+        self.relu2 = nn.ReLU()
+        self.linear3 = nn.Linear(50,1)
     
     def forward(self,x):
         x = self.linear1(x)
-        x = self.relu(x)
+        x = self.relu1(x)
         x = self.linear2(x)
+        x = self.relu2(x)
+        x = self.linear3(x)
         return x
     
     def train(self,dataloader,n_epochs,train_batch_size):
@@ -40,5 +44,8 @@ class NN(nn.Module, Model):
             print("--------------------------------")
             print(f"Epoch {i+1}: loss={epoch_loss:>7f}")
             print("\n")
+
+    def predict(self,x):
+        return self(x)
 
         
