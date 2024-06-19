@@ -77,6 +77,9 @@ class GENErunner():
         '''
         print('CLEANING RUN DIR OF RUNER CREATED DIRECTORIES')
         os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && rm -r prob_* prob0*'")
+
+    def mkdir(self, dir):
+        return os.system(f"ssh {self.host} 'mkdir -p {dir}'")
         
 
 if __name__ == '__main__':
