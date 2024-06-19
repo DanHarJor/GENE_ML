@@ -1,7 +1,7 @@
 import os
 import pickle
 class Results():
-    def __init__(self, name):
+    def __init__(self, name, *args, **kargs):
         self.name = name
         self.growthrate_predict_seen = None
         self.growthrate_predict_unseen = None
@@ -17,8 +17,25 @@ class Results():
         pickle.dump(self, open(self.path, 'wb'))
 
     def load(self):
-<<<<<<< HEAD
-        self = pickle.load(open(self.path, 'rb'))
-=======
         return pickle.load(open(self.path, 'rb'))
->>>>>>> 1888b3942dc73f27963cb309f269ffc5daa885a7
+    
+    def exists(self):
+        return os.path.exists(self.path)
+    
+class ResultsUQ(Results):
+    def __init__(self, name):
+        super().__init__(name)
+        self.growthrate_nominal = None
+        self.growthrate_lower_bound = None
+        self.growthrate_upper_bound = None
+        self.growthrate_predict_uqsamples = None
+        self.bounds = None
+        self.nominal_parameters = None
+
+if __name__ == '__main__':
+    ruq = ResultsUQ(name='test_name')
+
+    ruq.growthrate_predict_seen = 5
+    ruq.nominal_growthrate = 3
+
+    print(ruq.growthrate_predict_seen, ruq.nominal_growthrate)

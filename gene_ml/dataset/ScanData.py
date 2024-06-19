@@ -65,7 +65,7 @@ class ScanData(DataSet):
             print('TEST PERCENTAGE IS 0, NO SPLIT')
             self.x_train = self.x
             self.x_test = None
-            self.x_growthrate_train = self.growthrates
+            self.growthrate_train = self.growthrates
             self.growthrate_test = None
             self.frequencies_train = self.frequencies
             self.frequencies_test = None
