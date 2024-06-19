@@ -6,11 +6,13 @@ import copy
 class NN(nn.Module, Model):
     def __init__(self):
         super(NN, self).__init__()
-        self.linear1 = nn.Linear(8,50)
+        self.linear1 = nn.Linear(8,90)
         self.relu1 = nn.ReLU()
-        self.linear2 = nn.Linear(50,50)
+        self.linear2 = nn.Linear(90,90)
         self.relu2 = nn.ReLU()
-        self.linear3 = nn.Linear(50,1)
+        self.linear3 = nn.Linear(90,90)
+        self.relu3 = nn.ReLU()
+        self.linear4 = nn.Linear(90,1)
     
     def forward(self,x):
         x = self.linear1(x)
@@ -18,12 +20,14 @@ class NN(nn.Module, Model):
         x = self.linear2(x)
         x = self.relu2(x)
         x = self.linear3(x)
+        x = self.relu3(x)
+        x = self.linear4(x)
         return x
     
     def train(self,dataloader,val_dataloader,n_epochs,train_batch_size):
         loss_fn = nn.MSELoss()
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-4)
-        patience = 500
+        optimizer = torch.optim.Adam(self.parameters(), lr=3e-3)
+        patience = 1000
 
         size = len(dataloader.dataset)
         num_batches = len(dataloader)
