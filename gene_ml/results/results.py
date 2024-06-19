@@ -18,7 +18,6 @@ class Results():
 
     def load(self):
         return pickle.load(open(self.path, 'rb'))
-<<<<<<< HEAD
     
     def exists(self):
         return os.path.exists(self.path)
@@ -40,5 +39,3 @@ if __name__ == '__main__':
     ruq.nominal_growthrate = 3
 
     print(ruq.growthrate_predict_seen, ruq.nominal_growthrate)
-=======
->>>>>>> 56f5e15883ccf790e8ca36130eed2475e5aedf91
