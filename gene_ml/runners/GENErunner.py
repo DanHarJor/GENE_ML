@@ -60,7 +60,7 @@ class GENErunner():
 
         if not os.path.exists('temp/'):
             os.mkdir('temp/')
-        os.system('rm temp/*')
+        # os.system('rm temp/*')
 
         n_samples = len(list(samples.values())[0])
         #the simulation wall time limit needs to be slightly smaller than the wall time to ensure enough time for checkpoints. So the wall time is set to be 30% greater than guessed time
@@ -78,7 +78,7 @@ class GENErunner():
         remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{id}', 'submit.cmd')
         print('MOVING PARAMETERS AND SBATCH FILES TO CORRECT LOCATION IN REMOTE; SUBMITTING GENE SBATCH')
         os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{id}; exit' && scp temp/parameters_{id} {self.host}:{remote_param_path} && scp temp/sbatch_{id} {self.host}:{remote_sbatch_path} && ssh {self.host} 'cd {self.remote_run_dir}/auto_prob_{id}; sbatch submit.cmd; exit'")
-    
+        print(f'JUST CREATED auto_prob_{id} in remote_run_dir')
 
     def clean(self):
         '''
@@ -86,6 +86,9 @@ class GENErunner():
         '''
         print('CLEANING RUN DIR OF RUNER CREATED DIRECTORIES')
         os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && rm -r auto_prob_* prob0*'")
+
+        os.system('rm temp/*')
+
         
 
 if __name__ == '__main__':

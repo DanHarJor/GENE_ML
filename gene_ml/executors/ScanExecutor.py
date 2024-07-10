@@ -10,17 +10,18 @@ class ScanExecutor():
         self.runner = runner
         self.remote_save_dir = remote_save_dir
 
-    def start_runs(self):
+    def start_runs(self, ex_id, clean=True):
         #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
         batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
         batches = [{k:v[i] for k,v in batches.items()} for i in range(self.num_workers)]
         print(100 * "=")
-        self.runner.clean() #removes any directories within the remote_run_dir that the runner creates, so it starts fresh
+        if clean: self.runner.clean() #removes any directories within the remote_run_dir that the runner creates, so it starts fresh
         print("EXECUTING BATCHES")
-        for batch, id in zip(batches, np.arange(len(batches))):
+        ids = [f'ex-{ex_id}_batch-{b_id}' for b_id in np.arange(len(batches))]
+        for batch, id in zip(batches, ids):
             self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'batch_{id}')
             self.runner.code_run(batch, id=id)
-
+    
 if __name__ == '__main__':
     import os
     import sys
