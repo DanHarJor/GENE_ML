@@ -1,5 +1,6 @@
 import subprocess
 import os
+import f90nml.parser
 import numpy as np
 import f90nml
 from typing import List
@@ -43,7 +44,7 @@ import pandas as pd
 
 class GENE_single_parser():
 
-    def write_input_file(self, params: dict, run_dir):
+    def write_input_file(self, params: dict, save_dir):
         """
         Write the GENE input file to the run directory specified. 
         
@@ -52,19 +53,19 @@ class GENE_single_parser():
             params (dict): The keys store strings of the names of the parameters as specified in the enchanted surrogates *_config.yaml configuration file.
             The values stores floats of the parameter values to be ran in GENE.
 
-            rprint('Writing to', run_dir)
-        if os.path.exists(run_dir):
-            input_fpath = os.path.join(run_dir, 'input.tglf')
+            rprint('Writing to', save_dir)
+        if os.path.exists(save_dir):
+            input_fpath = os.path.join(save_dir, 'input.tglf')
             subprocess.run(['touch', f'{input_fpath}'])
         else:
-            raise FileNotFoundError(f'Couldnt find {run_dir}')un_dir (string or path): The file system directory where runs are to be stored
+            raise FileNotFoundError(f'Couldnt find {save_dir}')un_dir (string or path): The file system directory where runs are to be stored
 
         """
-        print('Writing to', run_dir)
-        if os.path.exists(run_dir):
-            input_fpath = os.path.join(run_dir, 'parameters')
+        print('Writing to', save_dir)
+        if os.path.exists(save_dir):
+            self.input_fpath = os.path.join(save_dir, 'parameters')
         else:
-            raise FileNotFoundError(f'Couldnt find {run_dir}')
+            raise FileNotFoundError(f'Couldnt find {save_dir}')
 
         params_keys = list(params.keys())
         params_values = list(params.values())
@@ -81,14 +82,14 @@ class GENE_single_parser():
         patch = f90nml.namelist.Namelist(patch)
         namelist.patch(patch)
         
-        f90nml.write(namelist, input_fpath)
+        f90nml.write(namelist, self.input_fpath)
 
     # what is returned here is returned to the runner for a single code run, which goes though the base executor to get to the future 
-    def read_output_file(self, run_dir: str):
+    def read_output_file(self, save_dir: str):
         raise NotImplementedError
     
 class GENE_scan_parser(): 
-    def __init__(self, base_params_dir=None, remote_save_dir=None):
+    def __init__(self, save_dir, base_params_dir=None, remote_save_dir=None):
         """
         Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
 
@@ -102,12 +103,29 @@ class GENE_scan_parser():
         -------
             Nothing 
         """
+        self.save_dir = save_dir
+        self.base_params_dir = base_params_dir
         if base_params_dir!=None:
-            self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
+            self.base_namelist = f90nml.read(self.base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
         if remote_save_dir != None:
             self.remote_save_dir = remote_save_dir
 
-    def write_input_file(self, params: dict, run_dir, file_name='parameters'):
+    def alter_base(self, group_var, value):
+        #currently only works for variables that only appear in one group, not omn as it is in each species group
+        #var example var="general_timelim", group_variable for fortran parameters file.
+        group, var = group_var.split("_")
+        patch = {group: {var: value}}
+
+        self.base_namelist.patch(patch)
+
+        print('Writing to', self.base_params_dir)
+        if os.path.exists(self.base_params_dir):
+            f90nml.write(self.base_namelist, self.base_params_dir, force=True)
+        else:
+            raise FileNotFoundError(f'Couldnt find {self.base_params_dir}')
+
+    #puts in the paramaters with the GENE !scan functionality
+    def write_input_file(self, params: dict, file_name='parameters'):
         namelist = self.base_namelist
         namelist_string=str(namelist)
         
@@ -204,14 +222,15 @@ class GENE_scan_parser():
 
         #Writing the final namelist stirng to file. This is the scan parameters file.
                 # checking run dir exists and making Path for scan file
-        print('Writing to', run_dir)
-        if os.path.exists(run_dir):
-            input_fpath = os.path.join(run_dir, file_name)
+        print('Writing to', self.save_dir)
+        if os.path.exists(self.save_dir):
+            input_fpath = os.path.join(self.save_dir, file_name)
         else:
-            raise FileNotFoundError(f'Couldnt find {run_dir}')
+            raise FileNotFoundError(f'Couldnt find {self.save_dir}')
 
         with open(input_fpath, 'w') as file:
-            file.write(namelist_string)        
+            file.write(namelist_string)  
+        
         return namelist_string
     
 
@@ -246,5 +265,7 @@ if __name__ == '__main__':
     # 'box-kymin':generator.uniform(0.05,1,5)
     params = {'species-omn':omn,
           '_grp_species_1-omt':generator.uniform(10,70,5)}
-    parser = GENE_scan_parser(base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
-    parser.write_input_file(params,run_dir=os.getcwd(),file_name='parameters_scanwith')
+    parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
+    parser.alter_base(group_var="general_timelim",value=44000)
+    parser.write_input_file(params,file_name='parameters_scanwith')
+    
