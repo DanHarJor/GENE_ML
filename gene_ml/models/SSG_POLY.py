@@ -19,7 +19,8 @@ import numpy as np
 
 
 class SSG_POLY(Model):
-    def __init__(self, ssg_sampler):        
+    def __init__(self, ssg_sampler, name):
+        Model.__init__(self, name=name)        
         self.InterpToSpectral_obj = InterpolationToSpectral(ssg_sampler.dim, ssg_sampler.level_to_nodes, ssg_sampler.left_bounds, ssg_sampler.right_bounds, ssg_sampler.weights, ssg_sampler.level, ssg_sampler.Grid_obj)
         self.multiindex_set = ssg_sampler.Multiindex_obj.get_std_total_degree_mindex(ssg_sampler.level)
         self.ssg_sampler = ssg_sampler

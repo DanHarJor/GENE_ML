@@ -7,11 +7,15 @@ class Model():
             os.mkdir('saved_models')
         self.path = os.path.join('saved_models',name)
     
-    def save(self, path):
+    def save(self, path=None):
+        if path==None:
+            path = self.path
         pickle.dump(self, open(path, 'wb'))
 
     
-    def load(self):
-        return pickle.load(open(self.path, 'rb'))
+    def load(self,path=None):
+        if path==None:
+            path= self.path
+        return pickle.load(open(path, 'rb'))
 
     
