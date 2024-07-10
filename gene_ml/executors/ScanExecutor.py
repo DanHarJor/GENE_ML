@@ -11,7 +11,6 @@ class ScanExecutor():
         self.remote_save_dir = remote_save_dir
 
     def start_runs(self):
-        print('MAKING REMOTE SAVE DIR', self.runner.mkdir(self.remote_save_dir))
         #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
         batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
         batches = [{k:v[i] for k,v in batches.items()} for i in range(self.num_workers)]
