@@ -177,18 +177,22 @@ class ScanData(DataSet):
         self.split()
 
 if __name__ == '__main__':
+    import os
+    import sys
+        
     sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/gene_ml')
     from parsers.GENEparser import GENE_scan_parser
-    base_params_path = os.path.join(os.getcwd(),'parameters_base_uq')
+    base_params_path = os.path.join(os.getcwd(),'parameters_base_dp')
     remote_save_dir='/project/project_462000451/gene_out/gene_auto'
-    parser = GENE_scan_parser(base_params_path, remote_save_dir)
+    save_dir = "temp/"
+    parser = GENE_scan_parser(save_dir, base_params_path, remote_save_dir)
 
     # ssh_path = None
 #    remote_path = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
-    remote_path = "/scratch/project_462000451/gene_out/gene_auto/SSG_2p_l3_uq"
+    remote_path = "/scratch/project_462000451/gene_out/gene_auto/nan100"
     host = 'lumi'
     #data_set = ScanData('100_3p', parser, ssh_path=ssh_path)
-    data_set = ScanData('testing_batchscans3', parser, host, remote_path=remote_path)
+    data_set = ScanData('testwithnan', parser, host, remote_path=remote_path)
     
 
     print('HEAD',data_set.head)
