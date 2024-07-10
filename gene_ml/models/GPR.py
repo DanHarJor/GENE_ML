@@ -33,7 +33,7 @@ class GPR(Model):
         y_predict, y_error = self.regressor.predict(np.array(x))
         print(y_predict.shape)
         print(y_predict) 
-        return y_predict[:,0], y_error[:,0]
+        return [y_predict[:,0], y_error[:,0]]
     
     
     
