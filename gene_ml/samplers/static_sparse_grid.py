@@ -39,9 +39,11 @@ class StaticSparseGrid():
 
 
         self.parameters = parameters
+        self.num_samples = None
         self.samples, self.num_samples, self.samples_array, self.samples_array_norm = self.generate_parameters()
         
         self.current_index = 0
+
 
     def generate_parameters(self):
         ## sparse grid multi-index set 
@@ -56,7 +58,7 @@ class StaticSparseGrid():
 
         print('POINTS SHAPE',std_sg_points.shape)
         num_samples = std_sg_points.shape[0]        
-
+        self.num_samples = num_samples
         print("\033[1m no points for dim = {} and level = {} is n = {}\033[0m".format(self.dim, self.level, num_samples))
         ## we then map the grid points to our domain of interest
         # returns a list of lists, each sublist is a set of points

@@ -4,11 +4,11 @@ sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/')
 import os
 
 class ScanExecutor():
-    def __init__(self, num_workers, sampler, runner, remote_save_dir, **kwargs):
+    def __init__(self, num_workers, sampler, runner, **kwargs):
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
         self.runner = runner
-        self.remote_save_dir = remote_save_dir
+        self.remote_save_dir = self.runner.parser.remote_save_dir
 
     def start_runs(self, ex_id, clean=True):
         #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
