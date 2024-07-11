@@ -56,7 +56,10 @@ class ScanData(DataSet):
         print("NUMBER OF SAMPLES AFTER REMOVING NaN's:", n_samp_nonan)
         nan_percentage = (n_samp-n_samp_nonan)*100/n_samp
         print('NaN PERCENTAGE = ', nan_percentage)
-
+        
+        self.set_from_df()
+    
+    def set_from_df(self):
         self.head = list(self.df.columns)
         self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
@@ -72,7 +75,7 @@ class ScanData(DataSet):
             self.frequencies_test = None
         else:
             self.split()
-    
+
     def split(self):    
         print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
@@ -175,6 +178,38 @@ class ScanData(DataSet):
         self.head = list(self.df.columns)
         self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.split()
+
+class SSG_ScanData(ScanData):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+    
+    def match_sampler(self, sampler):
+        print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
+        # Check that the data and sampler have the same order________
+        sample_order_bool = []
+        for i in range(len(self.x)):
+            sampler.samples_array[i]
+            self.growthrate_train[i]
+            #print(self.x[i], sampler.samples_array[i], f'gr {self.growthrate_train[i]}')
+            #The GENE scanlogs don't have the parameters in the same order as the sampler
+            #So we just check if they have the same numbers regardless of the order with sort
+            # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
+            # This is why the unique is there, to remove the duplicated omn. 
+            order_bool = np.sort(np.unique(np.round(self.x[i],2))) == np.sort(np.round(sampler.samples_array[i],2))
+            sample_order_bool.append(order_bool)
+        sample_order_bool = np.concatenate(sample_order_bool)
+        all_corect_order = all(sample_order_bool)
+        print("RESULT: ", all_corect_order, "\n")
+        #_____________________________________________________________
+        
+        if not all_corect_order:
+            print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
+            raise KeyError
+        else:
+            print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
+            # Now the order is correct we can safely make them the same. 
+            self.x = sampler.samples_array
+            print("COMPLETE \n")
 
 if __name__ == '__main__':
     import os
