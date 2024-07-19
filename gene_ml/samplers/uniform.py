@@ -9,7 +9,7 @@ class Uniform():
         self.bounds = bounds
         self.num_samples = num_samples
         self.samples = self.generate_samples()
-        self.samples_np = np.stack(list(self.samples.values())).T
+        self.samples_array = np.stack(list(self.samples.values())).T
         self.current_index = 0
 
     def generate_samples(self):

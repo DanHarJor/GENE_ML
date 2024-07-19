@@ -5,17 +5,17 @@ from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
 
 import os
 
-def make_executor(config, sampler, remote_save_name, guess_sample_wallseconds, num_workers):
-    remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
-    parser = GENE_scan_parser(config.save_dir, config.base_params_path, remote_save_dir)
-    runner = GENErunner(parser, config.host, config.sbatch_base_path, guess_sample_wallseconds, config.remote_run_dir)
-
-    ##Executor
-    #The executor will divide the samples into batches; one for each worker. Each batch will be ran in paralell in seperate sbatch jobs. 
-    # The executor should alter a base batch script to account for that less samples will be ran. 
-    # num_workers = 2
-    executor = ScanExecutor(num_workers, sampler, runner)
-    return executor, remote_save_dir
+class DataGen():
+    def __init__(self, config, sampler, remote_save_name, guess_sample_wallseconds, num_workers):
+        self.remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
+        self.parser = GENE_scan_parser(config.save_dir, config.base_params_path, self.remote_save_dir)
+        self.runner = GENErunner(self.parser, config.host, config.sbatch_base_path, guess_sample_wallseconds, config.remote_run_dir)
+        self.sampler = sampler
+        ##Executor
+        #The executor will divide the samples into batches; one for each worker. Each batch will be ran in paralell in seperate sbatch jobs. 
+        # The executor should alter a base batch script to account for that less samples will be ran. 
+        # num_workers = 2
+        self.executor = ScanExecutor(num_workers, sampler, self.runner)
 
 
 if __name__ == "__main__":

@@ -30,10 +30,11 @@ class GPR(Model):
         print('RESULTING HYPERS:\n',self.regressor)
     
     def predict(self, x):
-        y_predict, y_error = self.regressor.predict(np.array(x))
-        print(y_predict.shape)
-        print(y_predict) 
-        return [y_predict[:,0], y_error[:,0]]
+        y_predict, y_var = self.regressor.predict(np.array(x))
+        # print(y_predict.shape)
+        # print(y_predict) 
+        y_2sig = np.sqrt(y_var[:,0]) * 2 
+        return [y_predict[:,0], y_2sig]
     
     
     

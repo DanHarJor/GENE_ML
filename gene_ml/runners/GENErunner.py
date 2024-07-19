@@ -80,6 +80,16 @@ class GENErunner():
         os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{id}; exit' && scp temp/parameters_{id} {self.host}:{remote_param_path} && scp temp/sbatch_{id} {self.host}:{remote_sbatch_path} && ssh {self.host} 'cd {self.remote_run_dir}/auto_prob_{id}; sbatch submit.cmd; exit'")
         print(f'JUST CREATED auto_prob_{id} in remote_run_dir')
 
+    def update_gene_status(self):
+        gene_status_path = os.path.join(self.parser.remote_save_dir(),'scanfiles0000','in_pars','gene_status')
+        
+
+    def continue_with_increased_omega_prec():
+        None
+
+        
+
+
     def clean(self):
         '''
             Removes any prob0* directories created by ./newprob and the auto_prob_* directories created for the specific run.

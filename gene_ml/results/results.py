@@ -3,11 +3,6 @@ import pickle
 class Results():
     def __init__(self, name, *args, **kargs):
         self.name = name
-        self.growthrate_predict_seen = None
-        self.growthrate_predict_unseen = None
-        self.growthrate_predict_seen_errors = None
-        self.growthrate_predict_unseen_errors = None
-        
 
         if not os.path.exists('saved_results'):
             os.mkdir('saved_results')
@@ -22,9 +17,24 @@ class Results():
     def exists(self):
         return os.path.exists(self.path)
     
+class ResultsTraining(Results):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+        self.growthrate_predict_seen = None
+        self.growthrate_predict_unseen = None
+        self.growthrate_predict_seen_errors = None
+        self.growthrate_predict_unseen_errors = None
+
+class ResultsGroundTruthTest(Results):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+        self.altered_parameters_names = []
+        self.growthrates = []
+        self.frequencies = []
+    
 class ResultsUQ(Results):
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
         self.growthrate_nominal = None
         self.growthrate_lower_bound = None
         self.growthrate_upper_bound = None
