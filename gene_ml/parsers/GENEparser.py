@@ -6,6 +6,7 @@ import f90nml
 from typing import List
 from copy import deepcopy
 import pandas as pd
+import re
 
 
 # class GENEparser():
@@ -255,6 +256,19 @@ class GENE_scan_parser():
         
         df = df.drop(columns=[head[0],head[-1]])
         return df
+    
+    def read_run_time(self, geneerr_path):
+        # Open the file in read mode
+        with open(geneerr_path, 'r') as file:
+            # Iterate through each line in the file
+            for line_number, line in enumerate(file, start=1):
+                # Check if the desired string is in the current line
+                if 'Time for GENE simulation:' in line:
+                    time = line.strip().split(' ')[-2]#re.search('(?<=Ti :)[^.\s]*',line)
+                    print('TIME',time)
+                    # print('LINE', type(line), line, type(line.strip()), line.strip())
+                    # print(f"Line {line_number}: {line.strip()}")
+
 
     
 if __name__ == '__main__':
@@ -266,6 +280,6 @@ if __name__ == '__main__':
     params = {'species-omn':omn,
           '_grp_species_1-omt':generator.uniform(10,70,5)}
     parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
-    parser.alter_base(group_var="general_timelim",value=44000)
-    parser.write_input_file(params,file_name='parameters_scanwith')
-    
+    # parser.alter_base(group_var="general_timelim",value=44000)
+    # parser.write_input_file(params,file_name='parameters_scanwith')
+    parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')
