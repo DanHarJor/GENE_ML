@@ -13,7 +13,7 @@ except:
         raise ImportError 
 
 class ScanData(DataSet):
-    def __init__(self, name, parser, host=None, remote_path=None, test_percentage=50, random_state=47):
+    def __init__(self, name, parser, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -24,7 +24,7 @@ class ScanData(DataSet):
         self.parser = parser
         self.host=host
         self.remote_path = remote_path
-
+        self.sampler = sampler
         self.test_percentage=test_percentage
 
         self.random_state=random_state
@@ -57,6 +57,13 @@ class ScanData(DataSet):
         nan_percentage = (n_samp-n_samp_nonan)*100/n_samp
         print('NaN PERCENTAGE = ', nan_percentage)
         
+        #for quasineutrality omn1 is the same as omn2 so we can remove one
+        if any(np.array(self.df.columns.values.tolist()) == 'omn2'):
+            self.df = self.df.drop(columns=['omn2'])
+        if type(self.sampler) != type(None):        
+            self.set_from_df()
+            self.match_sampler(self.sampler)
+        print('SETTING VARIABLES')
         self.set_from_df()
     
     def set_from_df(self):
@@ -126,7 +133,7 @@ class ScanData(DataSet):
             while True:
                 j=0
                 while True:
-                    results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_{i}_{j}.log')}"))
+                    results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_{j}.log')}"))
                     print(results)
                     j+=1
                     if results[-3:] == [256,256,256]:
@@ -173,16 +180,6 @@ class ScanData(DataSet):
         n_samp_nonan = len(df)
         return df, n_samp, n_requested, n_samp_nonan
     
-    def remove_parameter(self, parameter_name):
-        self.df = self.df.drop(columns=[parameter_name])
-        self.head = list(self.df.columns)
-        self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
-        self.split()
-
-class SSG_ScanData(ScanData):
-    def __init__(self, *args, **kargs):
-        super().__init__(*args, **kargs)
-    
     def match_sampler(self, sampler):
         print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
         # Check that the data and sampler have the same order________
@@ -195,21 +192,64 @@ class SSG_ScanData(ScanData):
             #So we just check if they have the same numbers regardless of the order with sort
             # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
             # This is why the unique is there, to remove the duplicated omn. 
-            order_bool = np.sort(np.unique(np.round(self.x[i],2))) == np.sort(np.round(sampler.samples_array[i],2))
+            #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
+            order_bool = np.sort(np.unique(np.round(self.x[i],2))) == np.sort(np.unique(np.round(sampler.samples_array[i],2)))
             sample_order_bool.append(order_bool)
         sample_order_bool = np.concatenate(sample_order_bool)
         all_corect_order = all(sample_order_bool)
         print("RESULT: ", all_corect_order, "\n")
         #_____________________________________________________________
-        
+            
         if not all_corect_order:
             print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
             raise KeyError
         else:
             print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
             # Now the order is correct we can safely make them the same. 
-            self.x = sampler.samples_array
+            new_df = sampler.df.copy()
+            new_df['growthrate'] = self.df['growthrate'].to_numpy()
+            new_df['frequency'] = self.df['frequency'].to_numpy()
+            self.df = new_df
             print("COMPLETE \n")
+
+    
+
+    def remove_parameter(self, parameter_name):
+        self.df = self.df.drop(columns=[parameter_name])
+        self.set_from_df()    
+    
+class SSG_ScanData(ScanData):
+    def __init__(self, *args, **kargs):
+        super().__init__(*args, **kargs)
+    
+    # def match_sampler(self, sampler):
+    #     print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
+    #     # Check that the data and sampler have the same order________
+    #     sample_order_bool = []
+    #     for i in range(len(self.x)):
+    #         sampler.samples_array[i]
+    #         self.growthrate_train[i]
+    #         #print(self.x[i], sampler.samples_array[i], f'gr {self.growthrate_train[i]}')
+    #         #The GENE scanlogs don't have the parameters in the same order as the sampler
+    #         #So we just check if they have the same numbers regardless of the order with sort
+    #         # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
+    #         # This is why the unique is there, to remove the duplicated omn. 
+    #         #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
+    #         order_bool = np.sort(np.unique(np.round(self.x[i],2))) == np.sort(np.unique(np.round(sampler.samples_array[i],2)))
+    #         sample_order_bool.append(order_bool)
+    #     sample_order_bool = np.concatenate(sample_order_bool)
+    #     all_corect_order = all(sample_order_bool)
+    #     print("RESULT: ", all_corect_order, "\n")
+    #     #_____________________________________________________________
+        
+        # if not all_corect_order:
+        #     print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
+        #     raise KeyError
+        # else:
+        #     print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
+        #     # Now the order is correct we can safely make them the same. 
+        #     self.x = sampler.samples_array
+        #     print("COMPLETE \n")
 
 if __name__ == '__main__':
     import os

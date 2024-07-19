@@ -4,6 +4,7 @@ import sys
 # from os import sys
 from os import getcwd
 from os import path
+import pandas as pd
 
 pathap = path.join('..','static_sparse_grid_approximations')
 sys.path.append(pathap)
@@ -44,6 +45,7 @@ class StaticSparseGrid():
         
         self.current_index = 0
 
+        self.df = pd.DataFrame(self.samples_array, columns=self.parameters)
 
     def generate_parameters(self):
         ## sparse grid multi-index set 
