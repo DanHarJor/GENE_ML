@@ -4,22 +4,37 @@ sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/')
 import os
 
 class ScanExecutor():
-    def __init__(self, num_workers, sampler, runner, **kwargs):
+    def __init__(self, num_workers, sampler, runner, ex_id, **kwargs):
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
         self.runner = runner
         self.remote_save_dir = self.runner.parser.remote_save_dir
-
-    def start_runs(self, ex_id):
-        #batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
-        batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
-        batches = [{k:v[i] for k,v in batches.items()} for i in range(self.num_workers)]
+        self.ex_id = ex_id
+        self.sbatch_ids = [] #the sbatch id is the slurm sbatch id
+        self.batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
+        self.batches = [{k:v[i] for k,v in self.batches.items()} for i in range(self.num_workers)]
+        self.run_ids =  [f'ex-{self.ex_id}_batch-{b_id}' for b_id in np.arange(len(self.batches))] #the runid will be the name of the folder in the remote_run_dir
+        
+    
+    def start_runs(self):
         print(100 * "=")
         print("EXECUTING BATCHES")
-        ids = [f'ex-{ex_id}_batch-{b_id}' for b_id in np.arange(len(batches))]
-        for batch, id in zip(batches, ids):
-            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'batch_{id}')
-            self.runner.code_run(batch, id=id)
+        #self.batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
+        for batch, id in zip(self.batches, self.run_ids):
+            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'{id}')
+            self.sbatch_ids.append(self.runner.code_run(batch, id=id))
+        self.runner.check_complete(self.sbatch_ids)
+
+    def check_finished(self):
+        #To check that the executors sbatch id's are no longer in the squeue
+        self.runner.check_finished(self.sbatch_ids)
+    
+    def check_complete(self):
+        #To check that all the runs have been complete and a continue scan is not needed
+        self.runner.check_complete(self.run_ids)
+
+
+        
     
 if __name__ == '__main__':
     import os
