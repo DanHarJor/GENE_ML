@@ -68,10 +68,10 @@ class ScanData(DataSet):
     
     def set_from_df(self):
         self.head = list(self.df.columns)
-        self.x = self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.x = self.df.drop(columns=['growthrate','frequency','run-time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
-        
+        self.run_time = self.df['run-time'].to_numpy(dtype=float)
         if self.test_percentage == 0:
             print('TEST PERCENTAGE IS 0, NO SPLIT')
             self.x_train = self.x
@@ -88,33 +88,35 @@ class ScanData(DataSet):
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
 
 
-    def load_from_file(self,data_path):
-        print(f'\nLOADING SCANLOG INTO PYTHON {data_path}')
-        df = self.parser.read_output_file(data_path)
+    def load_from_file(self,scan_path, geneerr_path):
+        print(f'\nLOADING SCANLOG AND TIME INTO PANDAS DATAFRAME {scan_path} : {geneerr_path}')
+        scan_df = self.parser.read_output_file(scan_path)
+        time_df = self.parser.read_run_time(geneerr_path)
+        df = pd.concat([time_df, scan_df], axis=1)
         return df
     
-    def retrieve_out_file(self, fname):
-        save_path = os.path.join(os.getcwd(), 'out_files', self.name, fname)
-        if not os.path.exists(save_path):
-            os.system(f'mkdir -p {save_path}')
-        print(f'\nRETRIEVING {fname} VIA scp FROM REMOTE')
-        i = 0
-        results = []
-        while True:
-            j=0
-            while True:
-                results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/{fname}' {os.path.join(save_path,f'{fname}_{i}_{j}.log')}"))
-                print(results)
-                j+=1
-                if results[-3:] == [256,256,256]:
-                    break
-            # result = os.system(f"scp 'lumi:/scratch/project_462000451/gene_out/gene_auto/testing_batchscans/scanfiles*{i}/scan.log' $PWD/scanlogs/testing_batchscans/scan{i}.log")
-            i+=1
-            if results[-6:] == [256,256,256,256,256,256]:
-                break 
-        print('THE ABOVE ERROR IS EXPECTED')
+    # def retrieve_out_file(self, fname):
+    #     save_path = os.path.join(os.getcwd(), 'out_files', self.name, fname)
+    #     if not os.path.exists(save_path):
+    #         os.system(f'mkdir -p {save_path}')
+    #     print(f'\nRETRIEVING {fname} VIA scp FROM REMOTE')
+    #     i = 0
+    #     results = []
+    #     while True:
+    #         j=0
+    #         while True:
+    #             results.append(os.system(f"scp '{self.ssh_path}/*batch*{i}/scanfiles*{j}/{fname}' {os.path.join(save_path,f'{fname}_{i}_{j}.log')}"))
+    #             print(results)
+    #             j+=1
+    #             if results[-3:] == [256,256,256]:
+    #                 break
+    #         # result = os.system(f"scp 'lumi:/scratch/project_462000451/gene_out/gene_auto/testing_batchscans/scanfiles*{i}/scan.log' $PWD/scanlogs/testing_batchscans/scan{i}.log")
+    #         i+=1
+    #         if results[-6:] == [256,256,256,256,256,256]:
+    #             break 
+    #     print('THE ABOVE ERROR IS EXPECTED')
     
-        print(f'ALL {fname} RETRIEVED AND SAVED TO:{save_path}')
+    #     print(f'ALL {fname} RETRIEVED AND SAVED TO:{save_path}')
         
         
 
@@ -133,7 +135,11 @@ class ScanData(DataSet):
             while True:
                 j=0
                 while True:
-                    results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_{j}.log')}"))
+                    results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_scanfiles-{j}.log')}"))
+                    os.system(f"scp '{self.ssh_path}/*batch*{i}/scanfiles*{j}/geneerr.log' {os.path.join(self.scan_log_path,f'geneerr_batch-{i}_scanfiles-{j}.log')}")
+                    # results.append(os.system(f"scp '{self.ssh_path}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_{j}.log')}"))
+                    # os.system(f"scp '{self.ssh_path}/scanfiles*{j}/geneerr.log' {os.path.join(self.scan_log_path,f'geneerr_batch-{i}_{j}.log')}")
+
                     print(results)
                     j+=1
                     if results[-3:] == [256,256,256]:
@@ -147,17 +153,19 @@ class ScanData(DataSet):
         print(f'SCANLOG/S RETRIEVED AND SAVED TO:{self.scan_log_path}')
         
 
-    def load_from_dir(self, data_path):
+    def load_from_dir(self, scan_path):
         '''
         This function assumes the directory only contains log files
         '''
-        if not os.path.isdir(data_path): raise NotADirectoryError
+        if not os.path.isdir(scan_path): raise NotADirectoryError
         
         dfs, n_samp_all, n_requested_all, n_samp_nonan_all = [], [], [], []
         dfs_inc_nans = []
-        scanlog_paths = np.sort(np.array(os.listdir(data_path))) 
-        for scanlog in scanlog_paths:
-            df = self.load_from_file(os.path.join(data_path,scanlog))
+        log_paths = np.sort(np.array(os.listdir(scan_path)))
+        geneerr_paths = [p for p in log_paths if 'geneerr' in p]
+        scanlog_paths = [p for p in log_paths if 'scan' in p]
+        for scanlog, geneerr in zip(scanlog_paths, geneerr_paths):
+            df = self.load_from_file(os.path.join(scan_path,scanlog), os.path.join(scan_path,geneerr))
             dfs_inc_nans.append(df)
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
@@ -184,6 +192,8 @@ class ScanData(DataSet):
         print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
         # Check that the data and sampler have the same order________
         sample_order_bool = []
+        print('x', self.x[0], 's', sampler.samples_array[0])
+        print('l',len(self.x))
         for i in range(len(self.x)):
             sampler.samples_array[i]
             self.growthrate_train[i]
@@ -193,7 +203,7 @@ class ScanData(DataSet):
             # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
             # This is why the unique is there, to remove the duplicated omn. 
             #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
-            order_bool = np.sort(np.unique(np.round(self.x[i],2))) == np.sort(np.unique(np.round(sampler.samples_array[i],2)))
+            order_bool = np.sort(np.unique(np.round(self.x[i],3))) == np.sort(np.unique(np.round(sampler.samples_array[i],3)))
             sample_order_bool.append(order_bool)
         sample_order_bool = np.concatenate(sample_order_bool)
         all_corect_order = all(sample_order_bool)
@@ -216,8 +226,12 @@ class ScanData(DataSet):
 
     def remove_parameter(self, parameter_name):
         self.df = self.df.drop(columns=[parameter_name])
-        self.set_from_df()    
-    
+        self.set_from_df()
+
+    def train_time_model(self, model):
+        self.time_model = model
+        self.time_model.train(self.x, self.run_time)
+
 class SSG_ScanData(ScanData):
     def __init__(self, *args, **kargs):
         super().__init__(*args, **kargs)

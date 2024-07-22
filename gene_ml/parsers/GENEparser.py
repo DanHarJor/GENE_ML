@@ -259,16 +259,22 @@ class GENE_scan_parser():
     
     def read_run_time(self, geneerr_path):
         # Open the file in read mode
+        times = []
         with open(geneerr_path, 'r') as file:
             # Iterate through each line in the file
             for line_number, line in enumerate(file, start=1):
                 # Check if the desired string is in the current line
                 if 'Time for GENE simulation:' in line:
                     time = line.strip().split(' ')[-2]#re.search('(?<=Ti :)[^.\s]*',line)
-                    print('TIME',time)
+                    times.append(time)
+                    # print('TIME',time)
                     # print('LINE', type(line), line, type(line.strip()), line.strip())
                     # print(f"Line {line_number}: {line.strip()}")
-
+        df = pd.DataFrame(times, columns=['run-time'])
+        return df
+    
+    def read_scan_status(self, sbatch_out_path):
+        None
 
     
 if __name__ == '__main__':
