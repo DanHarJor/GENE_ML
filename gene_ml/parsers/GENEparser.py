@@ -274,7 +274,16 @@ class GENE_scan_parser():
         return df
     
     def read_scan_status(self, sbatch_out_path):
-        None
+        scan_status = 'some error'
+        with open(sbatch_out_path, 'r') as file:
+            # Iterate through each line in the file
+            for line_number, line in enumerate(file, start=1):
+                if 'gene did not finish all runs, ready for continuation...' in line:
+                    scan_status = 'ready for continuation'
+                elif 'creating scan.log'in line:
+                    scan_status = 'complete'
+    
+        return scan_status
 
     
 if __name__ == '__main__':
