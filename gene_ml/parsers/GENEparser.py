@@ -270,7 +270,7 @@ class GENE_scan_parser():
                     # print('TIME',time)
                     # print('LINE', type(line), line, type(line.strip()), line.strip())
                     # print(f"Line {line_number}: {line.strip()}")
-        df = pd.DataFrame(times, columns=['run-time'])
+        df = pd.DataFrame(times, columns=['run_time'])
         return df
     
     def read_scan_status(self, sbatch_out_path):
