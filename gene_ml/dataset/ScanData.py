@@ -225,6 +225,7 @@ class ScanData(DataSet):
             new_df = sampler.df.copy()
             new_df['growthrate'] = self.df['growthrate'].to_numpy()
             new_df['frequency'] = self.df['frequency'].to_numpy()
+            new_df.insert(0, 'run_time', self.df['run_time'].to_numpy())
             self.df = new_df
             print("COMPLETE \n")
 
