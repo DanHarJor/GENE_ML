@@ -2,7 +2,6 @@ from decimal import Decimal
 from matplotlib import pyplot as plt
 import numpy as np
 
-from scipy import stats
 
 def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err=None):
     residuals = y_true - y_predicted
@@ -39,30 +38,3 @@ def residual_hist(ax, fig, y_true, y_predicted, var_name, title=None, bins=50, o
     if title != None:
         ax.set_title(title)
 
-def forward_uq(ax, results_uq, nbins, model_name, xlim):
-            
-    growthrates = results_uq.growthrate_predict_uqsamples#only_first_return(model.predict(samples))
-    nominal_growthrate = results_uq.growthrate_nominal#only_first_return(model.predict(nominal_parameters))
-    lower_bound_gr = results_uq.growthrate_lower_bound#only_first_return(model.predict(np.array([b[0] for b in bounds]).reshape(2,1).T))
-    upper_bound_gr = results_uq.growthrate_upper_bound#only_first_return(model.predict(np.array([b[1] for b in bounds]).reshape(2,1).T))
-    nominal_parameters = results_uq.nominal_parameters
-    # print('GROWTHRATES',growthrates.shape,growthrates)
-    kde = stats.gaussian_kde(growthrates)
-    hist_x = np.linspace(np.min(growthrates),0.08, 1000)
-    n, bins, _ = ax.hist(growthrates, bins=nbins, density=True)
-    ax.plot(hist_x, kde(hist_x), label='Gaussian Kernel Density Estimate')
-    ax.set_xlabel('Growthrate')
-    ax.set_ylabel('Probability Density')
-    ax.vlines(nominal_growthrate, 0, max(n), 'r', label='Nominal Value')
-    mean = np.mean(growthrates)
-    var = np.var(growthrates)
-    print('MEAN VAR',mean, var)
-    ax.vlines(mean, 0, max(n), 'black', label='Mean')
-    ax.vlines(mean+np.sqrt(var), 0, max(n), 'grey', label='Standard Deviation')
-    ax.vlines(mean-np.sqrt(var), 0, max(n), 'grey')
-    ax.vlines(lower_bound_gr, 0, max(n), 'g', label='Lower Bound')
-    ax.vlines(upper_bound_gr, 0, max(n), 'm', label='Upper Bound')
-    ax.annotate(fr'{model_name}| $\nabla T_e$: {nominal_parameters[0][0]}$\pm$1.35  -  $\nabla T_i$: {nominal_parameters[0][1]}$\pm$0.7  -  Gaussian Error 95% Confidance',
-            xy=(0, 1.05), xycoords='axes fraction',fontsize=10)
-    ax.set_xlim(xlim)
-    ax.legend()

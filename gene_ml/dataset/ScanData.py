@@ -68,6 +68,7 @@ class ScanData(DataSet):
     
     def set_from_df(self):
         self.head = list(self.df.columns)
+        print(self.df.head())
         self.x = self.df.drop(columns=['growthrate','frequency','run_time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
@@ -92,6 +93,7 @@ class ScanData(DataSet):
         print(f'\nLOADING SCANLOG AND TIME INTO PANDAS DATAFRAME {scan_path} : {geneerr_path}')
         scan_df = self.parser.read_output_file(scan_path)
         time_df = self.parser.read_run_time(geneerr_path)
+        print('TIME DF', time_df)
         df = pd.concat([time_df, scan_df], axis=1)
         return df
     
