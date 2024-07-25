@@ -13,7 +13,7 @@ except:
         raise ImportError 
 
 class ScanData(DataSet):
-    def __init__(self, name, parser, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47):
+    def __init__(self, name, parser, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47, parameters_map=None):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -28,6 +28,8 @@ class ScanData(DataSet):
         self.test_percentage=test_percentage
 
         self.random_state=random_state
+        self.parameters_map = parameters_map
+
         self.ssh_path = f"{self.host}:{self.remote_path}"
         print('SSH PATH', self.ssh_path)
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
@@ -89,8 +91,9 @@ class ScanData(DataSet):
         self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
 
 
-    def load_from_file(self,scan_path, geneerr_path):
+    def load_from_file(self, scan_path, geneerr_path):
         print(f'\nLOADING SCANLOG AND TIME INTO PANDAS DATAFRAME {scan_path} : {geneerr_path}')
+        print('**SCAN PATH**', scan_path)
         scan_df = self.parser.read_output_file(scan_path)
         time_df = self.parser.read_run_time(geneerr_path)
         print('TIME DF', time_df)
@@ -137,7 +140,7 @@ class ScanData(DataSet):
             while True:
                 j=0
                 while True:
-                    results.append(os.system(f"scp '{self.ssh_path}/batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_scanfiles-{j}.log')}"))
+                    results.append(os.system(f"scp '{self.ssh_path}/*batch*{i}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_scanfiles-{j}.log')}"))
                     os.system(f"scp '{self.ssh_path}/*batch*{i}/scanfiles*{j}/geneerr.log' {os.path.join(self.scan_log_path,f'geneerr_batch-{i}_scanfiles-{j}.log')}")
                     # results.append(os.system(f"scp '{self.ssh_path}/scanfiles*{j}/scan.log' {os.path.join(self.scan_log_path,f'scan_batch-{i}_{j}.log')}"))
                     # os.system(f"scp '{self.ssh_path}/scanfiles*{j}/geneerr.log' {os.path.join(self.scan_log_path,f'geneerr_batch-{i}_{j}.log')}")
@@ -225,7 +228,13 @@ class ScanData(DataSet):
             self.df = new_df
             print("COMPLETE \n")
 
-    
+    def match_parameters_order(self, parameters):
+        ordered_head = [] 
+        for param in parameters:
+            ordered_head.append(self.parameters_map[param])
+        self.df = self.df.loc[:,['run_time',*ordered_head,'growthrate','frequency']]
+        
+
 
     def remove_parameter(self, parameter_name):
         self.df = self.df.drop(columns=[parameter_name])
