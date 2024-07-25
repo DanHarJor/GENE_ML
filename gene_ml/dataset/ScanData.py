@@ -155,7 +155,7 @@ class ScanData(DataSet):
         
         dfs, n_samp_all, n_requested_all, n_samp_nonan_all = [], [], [], []
         dfs_inc_nans = []
-        scanlog_paths = np.sort(np.array(os.listdir(data_path))) 
+        scanlog_paths = np.sort(np.array(os.listdir(data_path)))
         for scanlog in scanlog_paths:
             df = self.load_from_file(os.path.join(data_path,scanlog))
             dfs_inc_nans.append(df)
