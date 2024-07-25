@@ -49,7 +49,7 @@ class ScanData(DataSet):
             self.df_inc_nan = self.load_from_file(self.scan_log_path)
             self.df, n_samp, n_requested, n_samp_nonan = self.remove_nans(self.df_inc_nan)
         else:
-            print('\nLOADING FROM SCANLOG DIR')
+            print(f'\nLOADING FROM SCANLOG DIR: {self.scan_log_path}')
             self.df, n_samp, n_requested, n_samp_nonan = self.load_from_dir(self.scan_log_path)
 
         print(f'\n{n_samp} SAMPLES RAN OUT OF {n_requested} BEFORE MAX WALLTIME:')
@@ -161,17 +161,12 @@ class ScanData(DataSet):
         
         dfs, n_samp_all, n_requested_all, n_samp_nonan_all = [], [], [], []
         dfs_inc_nans = []
-<<<<<<< HEAD
-        scanlog_paths = np.sort(np.array(os.listdir(data_path)))
-        for scanlog in scanlog_paths:
-            df = self.load_from_file(os.path.join(data_path,scanlog))
-=======
+
         log_paths = np.sort(np.array(os.listdir(scan_path)))
         geneerr_paths = [p for p in log_paths if 'geneerr' in p]
-        scanlog_paths = [p for p in log_paths if 'scan' in p]
+        scanlog_paths = [p for p in log_paths if 'scan_' in p]
         for scanlog, geneerr in zip(scanlog_paths, geneerr_paths):
             df = self.load_from_file(os.path.join(scan_path,scanlog), os.path.join(scan_path,geneerr))
->>>>>>> b376c5c9fcd08d51df0caa0f959623e2d0497e13
             dfs_inc_nans.append(df)
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
