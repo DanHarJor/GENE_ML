@@ -2,6 +2,7 @@ import numpy as np
 import sys
 sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/')    
 import os
+import time
 
 class ScanExecutor():
     def __init__(self, num_workers, sampler, runner, ex_id, **kwargs):
@@ -20,21 +21,53 @@ class ScanExecutor():
         print(100 * "=")
         print("EXECUTING BATCHES")
         #self.batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
-        for batch, id in zip(self.batches, self.run_ids):
-            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'{id}')
-            self.sbatch_ids.append(self.runner.code_run(batch, id=id))
-        self.runner.check_complete(self.sbatch_ids)
+        for batch, rid in zip(self.batches, self.run_ids):
+            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'{rid}')
+            self.sbatch_ids.append(self.runner.code_run(batch, run_id=rid))
 
     def check_finished(self):
         #To check that the executors sbatch id's are no longer in the squeue
-        self.runner.check_finished(self.sbatch_ids)
+        finished = self.runner.check_finished(self.sbatch_ids)
+        print('EXECUTOR CHECK FINISHED', finished)
+        return finished
     
     def check_complete(self):
         #To check that all the runs have been complete and a continue scan is not needed
-        self.runner.check_complete(self.run_ids)
+        incomplete = self.runner.check_complete(self.run_ids)
+        print('EXECUTOR CHECK COMPLETE', incomplete)
+        return incomplete
+    
+    def continue_run(self):
+        incomplete = self.check_complete()
+        if len(incomplete)==0:
+            print('ALL RUNS HAVE BEEN COMPLETED OR FAILED')
+            return []
+        sbatch_ids = self.runner.continue_run(incomplete)
+        self.sbatch_ids = self.sbatch_ids + sbatch_ids
+        return sbatch_ids
 
+    def continue_n_times(self, n, check_every=30):
+        for i in range(n):
+            print('EXECUTING CONTINUE NUMBER:', i)
+            start = time.time()
+            while not self.check_finished():
+                now = time.time()
+                print('Waiting untill the runs are finished. TIMER: ', self.runner.sec_to_time_format(now-start), ' dd-hh:mm:ss')
+                time.sleep(check_every)
+            print('RUNS ARE FINISHED')
 
-        
+            continue_result = self.continue_run()
+            if len(continue_result) == 0:
+                break #all runs have finished or failed, there is nothing to continue
+        print('END OF CONTINUE N TIMES')
+
+    def delete(self):
+        print('EXECUTOR DELETE')
+        self.runner.delete(self.run_ids)
+        self.runner.delete_remote_dir(self.remote_save_dir)
+        print('EXECUTOR DELETING run_files')
+        for sbatch_id in self.sbatch_ids:
+            os.system(f'rm run_files/auto_gene.{sbatch_id}.out')
     
 if __name__ == '__main__':
     import os
