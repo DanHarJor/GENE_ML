@@ -68,10 +68,10 @@ class ScanData(DataSet):
     
     def set_from_df(self):
         self.head = list(self.df.columns)
-        self.x = self.df.drop(columns=['growthrate','frequency','run-time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.x = self.df.drop(columns=['growthrate','frequency','run_time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.df['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.df['frequency'].to_numpy(dtype=float)
-        self.run_time = self.df['run-time'].to_numpy(dtype=float)
+        self.run_time = self.df['run_time'].to_numpy(dtype=float)
         if self.test_percentage == 0:
             print('TEST PERCENTAGE IS 0, NO SPLIT')
             self.x_train = self.x
