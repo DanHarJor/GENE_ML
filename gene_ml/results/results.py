@@ -60,14 +60,14 @@ class ResultsUQ(Results):
         print('GR MAX MIN',np.min(growthrates), np.max(growthrates))
         hist_x = np.linspace(np.min(growthrates),np.max(growthrates), 1000)
         n, bins, _ = ax.hist(growthrates, bins=nbins, density=True)
-        if self.pdf==None:
+        if type(self.pdf)==type(None):
             self.pdf = kde(hist_x)
-        if self.cdf==None:
+        if type(self.cdf)==type(None):
             self.cdf = np.array([integrate.quad(kde, -1, x)[0] for x in hist_x])
             self.save()
-        print('CDF',self.cdf)
-        print('SUM', sum(self.pdf), self.cdf[-1])
-        print('ARGMIN', np.argmin(abs(self.cdf-0.225)), np.argmin(abs(self.cdf-0.975)))
+        # print('CDF',self.cdf)
+        # print('SUM', sum(self.pdf), self.cdf[-1])
+        # print('ARGMIN', np.argmin(abs(self.cdf-0.225)), np.argmin(abs(self.cdf-0.975)))
         conf95_lower = hist_x[np.argmin(abs(self.cdf-0.025))]
         conf95_upper = hist_x[np.argmin(abs(self.cdf-0.975))]
         print('CONF 95', conf95_lower, conf95_upper)
