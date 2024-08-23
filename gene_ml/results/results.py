@@ -111,8 +111,8 @@ class ResultsUQ(Results):
         if do95conf:
             if type(self.cdf)==type(None):
                 print('COMPUTING CDF')
-                dx = (max_growthrate-min_growthrate)/1000
-                ar = np.array([self.kde(xi) for xi in np.arange(min_growthrate, max_growthrate, dx)]).flatten()*dx
+                dx = np.abs(hist_x[-1] - hist_x[-2])
+                ar = np.array([self.kde(xi) for xi in hist_x]).flatten()*dx
                 self.cdf = np.cumsum(ar)
                 self.save()
             self.conf95_lower = hist_x[np.argmin(abs(self.cdf-0.025))]
