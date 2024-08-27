@@ -7,6 +7,7 @@ import os
 
 class DataGen():
     def __init__(self, config, sampler, remote_save_name, num_workers, ex_id, guess_sample_wallseconds=None, previous_set=None, time_model=None):
+        self.remote_save_name = remote_save_name
         self.remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
         self.parser = GENE_scan_parser(config.save_dir, config.base_params_path, self.remote_save_dir)
 
