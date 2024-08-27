@@ -4,7 +4,7 @@ import numpy as np
 
 from scipy import stats
 
-def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err=None):
+def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err=None, font_size=None):
     residuals = y_true - y_predicted
     mse=np.mean((y_true-y_predicted)**2)
     if type(y_pred_err)!=type(None):
@@ -20,12 +20,12 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
     refx = np.linspace(np.min(y_predicted),np.max(y_predicted),100)#np.linspace(np.min((np.min(y_true),np.min(y_predicted))),np.max((np.max(y_true),np.max(y_predicted))), 100).astype(float)
     refy = np.zeros(len(refx))
     ax.plot(refx,refy, 'r')
-    ax.set_xlabel(f'GENE {var_name} (ground truth)')
-    ax.set_ylabel(f'Residuals, {var_name}')
+    ax.set_xlabel(f'GENE {var_name} (ground truth)', fontsize=font_size)
+    ax.set_ylabel(f'Residuals, {var_name}', fontsize=font_size)
     if title != None:
-        ax.set_title(f'{title}')##: {len(y_true)} data points')
+        ax.set_title(f'{title}', fontsize=font_size)##: {len(y_true)} data points')
     ax.annotate(f'MSE: {Decimal(mse):.2E}',
-            xy=(.8, .02), xycoords='axes fraction',fontsize=10)
+            xy=(.7, .02), xycoords='axes fraction', fontsize=font_size)
     
     ax.set_xlim(left=0)
 
