@@ -6,6 +6,8 @@ except:
     except: ImportError
 import sys
 import os
+import chaospy as cp
+import time
 
 # os.system("export PYTHONPATH=$PYTHONPATH:/home/djdaniel/GENE_UQ/GENE_ML/gene_ml/static_sparse_grid_approximations")
 
@@ -15,6 +17,9 @@ import os
 from sg_lib.grid.grid import *
 from sg_lib.algebraic.multiindex import *
 from sg_lib.operation.interpolation_to_spectral import *
+from sg_lib.get_sparse_grid_model_closed_form import *
+# from gene_ml.tools import sec_to_time_format
+from GENE_ML.gene_ml.tools import sec_to_time_format
 import numpy as np
 
 
@@ -23,13 +28,14 @@ class SSG_POLY(Model):
         Model.__init__(self, name=name)        
         self.InterpToSpectral_obj = InterpolationToSpectral(ssg_sampler.dim, ssg_sampler.level_to_nodes, ssg_sampler.left_bounds, ssg_sampler.right_bounds, ssg_sampler.weights, ssg_sampler.level, ssg_sampler.Grid_obj)
         self.multiindex_set = ssg_sampler.Multiindex_obj.get_std_total_degree_mindex(ssg_sampler.level)
+        
         self.ssg_sampler = ssg_sampler
         self.mean_est = None
         self.var_est = None
         self.all_sobol_indicies = None
 
+        self.coeff_SG, self.basis_SG = None, None
 
-        self.coeff_SG = None
         self.multiindex_bin = None
         
     def train(self, y):
@@ -41,19 +47,37 @@ class SSG_POLY(Model):
                 self.InterpToSpectral_obj.update_sg_evals_all_lut(sg_point_sub,y[i])#normalised point goes to unormalised label
                 i += 1
             self.InterpToSpectral_obj.update_sg_evals_multiindex_lut(multiindex, self.ssg_sampler.Grid_obj)
-        
+
+        self.coeff_SG, self.basis_SG = self.InterpToSpectral_obj.get_spectral_coeff_sg(self.multiindex_set)
+
+    
+    def get_polynomial(self):
+        if type(self.coeff_SG) != type(None) and type(self.basis_SG) != type(None):
+            var_ND = cp.variable(self.ssg_sampler.dim)
+            reduced_model_full = get_reduced_model_in_closed_form(self.coeff_SG, self.basis_SG, self.ssg_sampler.left_stoch_boundary, self.ssg_sampler.right_stoch_boundary, var_ND)
+            # print(reduced_model_full)
+            # print(type(reduced_model_full))
+            return reduced_model_full
+        else:
+            raise EnvironmentError("You must train before you can get the polynomial. Please run SSG_POLY.train(labels)")
+
+
     def predict(self, x):
-        # should return a prediction and its errors if available
-        f_interp = lambda x: self.InterpToSpectral_obj.eval_operation_sg(self.multiindex_set, x)
-        #f_interp needs normalised points
-        normalise = lambda x: (x-self.ssg_sampler.left_stoch_boundary) / (self.ssg_sampler.right_stoch_boundary - self.ssg_sampler.left_stoch_boundary)
-        prediction = []
-        for xi in x:
-            prediction.append(f_interp(normalise(xi)))
+        start = time.time()
+        polynomial = self.get_polynomial()
+        prediction = polynomial(*x.T)
+        # # should return a prediction and its errors if available
+        # f_interp = lambda x: self.InterpToSpectral_obj.eval_operation_sg(self.multiindex_set, x)
+        # #f_interp needs normalised points
+        # normalise = lambda x: (x-self.ssg_sampler.left_stoch_boundary) / (self.ssg_sampler.right_stoch_boundary - self.ssg_sampler.left_stoch_boundary)
+        # prediction = []
+        # for xi in x:
+        #     prediction.append(f_interp(normalise(xi)))
+        end = time.time()
+        print(f'PREDICTION WALL TIME FOR {len(x)} POINTS, dd-hh:mm:ss | {sec_to_time_format(end-start)}')
         return prediction
 
     def mean_var_est(self):
-        self.coeff_SG, basis_SG = self.InterpToSpectral_obj.get_spectral_coeff_sg(self.multiindex_set)
         self.mean_est = self.InterpToSpectral_obj.get_mean(self.coeff_SG)
         self.var_est = self.InterpToSpectral_obj.get_variance(self.coeff_SG)
         return self.mean_est, self.var_est

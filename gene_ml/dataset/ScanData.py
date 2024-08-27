@@ -223,8 +223,11 @@ class ScanData(DataSet):
             new_df = sampler.df.copy()
             new_df['growthrate'] = self.df['growthrate'].to_numpy()
             new_df['frequency'] = self.df['frequency'].to_numpy()
+            new_df.insert(0, 'run_time', self.df['run_time'].to_numpy())
             self.df = new_df
+            self.set_from_df()
             print("COMPLETE \n")
+
 
     def match_parameters_order(self, parameters):
         ordered_head = [] 
