@@ -6,6 +6,9 @@ class SVM(Model):
         self.regressor = svm.SVR()
     def train(self, x, y):
         self.regressor.fit(x, y)
+
+    def fit(self, *args, **kargs):
+        self.train(*args, **kargs)
     
     def predict(self, x):
         # should return a prediction and its errors if available

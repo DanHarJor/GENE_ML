@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 class Results():
     def __init__(self, name, *args, **kargs):
         self.name = name
+        self.predict_seen = None
+        self.predict_unseen = None
 
         if not os.path.exists('saved_results'):
             os.mkdir('saved_results')

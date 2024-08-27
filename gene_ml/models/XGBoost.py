@@ -9,6 +9,10 @@ class XGBoost(Model):
 
     def train(self, x, y):
         self.regressor.fit(x,y)
+
+    def fit(self, *args, **kargs):
+        self.train(*args, **kargs)
+    
     def tune_hypers(self, x, y):
         raise NotImplemented
     def predict(self, x):

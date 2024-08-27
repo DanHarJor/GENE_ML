@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from .base import Model
 import copy
+from torch.utils.data import TensorDataset, DataLoader
+
 
 class NN(nn.Module, Model):
     def __init__(self):
@@ -13,6 +15,8 @@ class NN(nn.Module, Model):
         self.linear3 = nn.Linear(90,90)
         self.relu3 = nn.ReLU()
         self.linear4 = nn.Linear(90,1)
+
+        self.training_loss
     
     def forward(self,x):
         x = self.linear1(x)
@@ -73,6 +77,14 @@ class NN(nn.Module, Model):
                     break
 
         self.load_state_dict(best_model_weights)
+
+    def fit(self, x, y, batch_percentage=10, n_epochs=10000):
+        # assumed it is already normalised
+        x = torch.Tensor(x)
+        y = torch.Tensor(y)
+        batch_size = int(len(x)*(batch_percentage/100))
+        data_loader = DataLoader(dataset=TensorDataset(x,y), batch_size=batch_size)
+        self.train(data_loader, n_epochs, batch_size)
 
     def predict(self,x):
         return self(x)

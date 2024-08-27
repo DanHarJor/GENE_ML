@@ -15,11 +15,13 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
         print('NO UNCERTAINTY PROVIDED')
         ax.scatter(y_true, residuals, marker='.')
      
-
-    refx = np.linspace(np.min(y_predicted),np.max(y_predicted),100)#np.linspace(np.min((np.min(y_true),np.min(y_predicted))),np.max((np.max(y_true),np.max(y_predicted))), 100).astype(float)
-    refy = np.zeros(len(refx))
-    ax.plot(refx,refy, 'r')
-    ax.set_xlabel(f'GENE {var_name} (ground truth)', fontsize=font_size)
+    # minimum = np.min(y_true)
+    # maximum = np.max(y_true)
+    # refx = np.linspace(minimum, maximum, 100)#np.linspace(np.min((np.min(y_true),np.min(y_predicted))),np.max((np.max(y_true),np.max(y_predicted))), 100).astype(float)
+    # refy = np.zeros(len(refx))
+    # ax.plot(refx,refy, 'r')
+    ax.axhline(0, 0, 1, color='r')
+    # ax.set_xlabel(f'GENE {var_name} (ground truth)', fontsize=font_size)
     ax.set_ylabel(f'Residuals, {var_name}', fontsize=font_size)
     if title != None:
         ax.set_title(f'{title}', fontsize=font_size)##: {len(y_true)} data points')
@@ -31,8 +33,9 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
 def residual_hist(ax, fig, y_true, y_predicted, var_name, title=None, bins=50, orientation='horizontal'):
     ax.hist(y_true-y_predicted, density=True, bins=bins, orientation=orientation)
     if orientation == 'horizontal':
+        None
         # ax.set_ylabel(f'Residuals, {var_name}')
-        ax.set_xlabel(f'Normalised Frequency')
+        # ax.set_xlabel(f'Normalised Frequency')
     if orientation == 'verticle':
         ax.set_xlabel(f'Residuals, {var_name}')
         ax.set_ylabel(f'Normalised Frequency')
