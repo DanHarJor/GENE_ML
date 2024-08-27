@@ -37,6 +37,9 @@ class GPR(Model):
         return [y_predict[:,0], y_2sig]
     
     
+    def fit(self, *args, **kargs):
+        self.train(*args, **kargs)
+        self.tune_hypers(*args, **kargs)
     
 if __name__ == '__main__':
     print('hello world')
