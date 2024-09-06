@@ -92,9 +92,11 @@ class ScanData(DataSet):
 
     def load_from_file(self, scan_path, geneerr_path):
         print(f'\nLOADING SCANLOG AND TIME INTO PANDAS DATAFRAME {scan_path} : {geneerr_path}')
-        print('**SCAN PATH**', scan_path)
         scan_df = self.parser.read_output_file(scan_path)
-        time_df = self.parser.read_run_time(geneerr_path)
+        if type(geneerr_path) == type(None):
+            time_df = pd.DataFrame(np.repeat(np.nan, len(scan_df)), columns=['run_time'])
+        else:
+            time_df = self.parser.read_run_time(geneerr_path)
         df = pd.concat([time_df, scan_df], axis=1)
         return df
     
@@ -166,10 +168,14 @@ class ScanData(DataSet):
         dfs_inc_nans = []
 
         log_paths = np.sort(np.array(os.listdir(scan_path)))
-        geneerr_paths = [p for p in log_paths if 'geneerr' in p]
-        scanlog_paths = [p for p in log_paths if 'scan_' in p]
-        for scanlog, geneerr in zip(scanlog_paths, geneerr_paths):
-            df = self.load_from_file(os.path.join(scan_path,scanlog), os.path.join(scan_path,geneerr))
+        print('LOG PATHS',log_paths)
+        geneerr_paths = [os.path.join(scan_path,p) for p in log_paths if 'geneerr' in p]
+        scanlog_paths = [os.path.join(scan_path,p) for p in log_paths if 'scan_' in p]
+        if len(geneerr_paths) != len(scanlog_paths):
+            geneerr_paths = [None]*len(scanlog_paths)
+
+        for scanlog_path, geneerr_path in zip(scanlog_paths, geneerr_paths):
+            df = self.load_from_file(scanlog_path, geneerr_path)
             dfs_inc_nans.append(df)
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
@@ -235,8 +241,6 @@ class ScanData(DataSet):
             ordered_head.append(self.parameters_map[param])
         self.df = self.df.loc[:,['run_time',*ordered_head,'growthrate','frequency']]
         
-
-
     def remove_parameter(self, parameter_name):
         self.df = self.df.drop(columns=[parameter_name])
         self.set_from_df()
@@ -244,6 +248,15 @@ class ScanData(DataSet):
     def train_time_model(self, model):
         self.time_model = model
         self.time_model.train(self.x, self.run_time)
+
+    def concat(self, datasets):
+        dfs = [self.df]
+        for ds in datasets:
+            dfs.append(ds.df)
+        joint_df = pd.concat(dfs)
+        self.df = joint_df
+        self.set_from_df()
+        return self
 
 class SSG_ScanData(ScanData):
     def __init__(self, *args, **kargs):
