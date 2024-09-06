@@ -14,6 +14,7 @@ class GPR(Model):
     def __init__(self, name):
         super().__init__(name)
         self.regressor = None
+        self.model_type_id = 'gpr'
 
     def train(self, x, y):
         print('GPR is a parameterless approach and does not have a training step. Instead the hyperparameters are tuned to the data.')
@@ -29,12 +30,15 @@ class GPR(Model):
         self.regressor.optimize_restarts(num_restarts = 3)
         print('RESULTING HYPERS:\n',self.regressor)
     
-    def predict(self, x):
+    def predict(self, x, disclude_errors=False):
         y_predict, y_var = self.regressor.predict(np.array(x))
         # print(y_predict.shape)
         # print(y_predict) 
-        y_2sig = np.sqrt(y_var[:,0]) * 2 
-        return [y_predict[:,0], y_2sig]
+        if disclude_errors:
+            return y_predict[:,0] 
+        else:
+            y_2sig = np.sqrt(y_var[:,0]) * 2 
+            return [y_predict[:,0], y_2sig]
     
     
     def fit(self, *args, **kargs):
