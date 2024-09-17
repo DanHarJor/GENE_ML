@@ -83,11 +83,11 @@ class SSG_POLY(Model):
         return self.mean_est, self.var_est
     
     def sobol_ind(self):
-        if self.coeff_SG == None: self.mean_var_est()
+        if type(self.coeff_SG) == type(None): self.mean_var_est()
 
-        multiindex_bin 		= self.Multiindex_obj.get_poly_mindex_binary(self.ssg_sampler.dim)
+        multiindex_bin 		= self.ssg_sampler.Multiindex_obj.get_poly_mindex_binary(self.ssg_sampler.dim)
         self.all_sobol_indices 	= self.InterpToSpectral_obj.get_all_sobol_indices(multiindex_bin, self.coeff_SG, self.multiindex_set)
-        return self.sobol_ind
+        return self.all_sobol_indices
 
 
 if __name__ == '__main__':
