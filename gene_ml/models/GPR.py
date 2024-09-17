@@ -31,7 +31,10 @@ class GPR(Model):
         print('RESULTING HYPERS:\n',self.regressor)
     
     def predict(self, x, disclude_errors=False):
-        y_predict, y_var = self.regressor.predict(np.array(x))
+        input = np.array(x)
+        if len(input.shape) == 1: #prediction for one point
+            input = np.array([x])
+        y_predict, y_var = self.regressor.predict(input)
         # print(y_predict.shape)
         # print(y_predict) 
         if disclude_errors:
