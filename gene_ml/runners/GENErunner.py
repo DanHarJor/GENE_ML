@@ -123,9 +123,18 @@ class GENErunner():
         
         print('SUBMITTED SBATCH ID',sbatch_id)
         return sbatch_id
+    
+    def kill_runs(self, sbatch_ids):
+        print('\n KILLING SBATCH IDS',sbatch_ids)
+        os.system(f"ssh {self.host} 'scancel {' '.join(sbatch_ids)}'")
+        command = f"ssh {self.host} 'squeue --me'"
+        queue = subprocess.check_output(command, shell=True, text=True)
+        print('SLURM QUEUE AFTER KILL',queue)
+        print('\n')
 
     # Checks to see if the slurm batch jobs are still in the queue. 
     def check_finished(self, sbatch_ids):
+        print('\nCHECKING IF JOBS FINISHED:', sbatch_ids)
         #To check that certain sbatch_id's are no longer in the squeue
         command = f"ssh {self.host} 'squeue --me'"
         queue = subprocess.check_output(command, shell=True, text=True)
@@ -138,6 +147,7 @@ class GENErunner():
         else:
             print('NONE OF THE INPUTED SBATCH IDs ARE RUNNING')
             finished  = True
+        print('\n')
         return finished
     
     def retrieve_run_file(self, file_name, run_id):

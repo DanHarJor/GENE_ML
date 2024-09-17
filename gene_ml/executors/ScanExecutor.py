@@ -27,9 +27,13 @@ class ScanExecutor():
 
     def check_finished(self):
         #To check that the executors sbatch id's are no longer in the squeue
+        print('BATCH IDS', self.sbatch_ids)
         finished = self.runner.check_finished(self.sbatch_ids)
         print('EXECUTOR CHECK FINISHED', finished)
         return finished
+    
+    def kill(self):
+        self.runner.kill_runs(self.sbatch_ids)
     
     def check_complete(self):
         #To check that all the runs have been complete and a continue scan is not needed
