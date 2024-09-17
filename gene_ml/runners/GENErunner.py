@@ -13,6 +13,7 @@ class GENErunner():
         self.ssh_path = f"{self.host}:{self.remote_run_dir}"
         self.time_model = time_model
         self.local_run_files_dir = local_run_files_dir
+        self.max_wallseconds = 0
 
     def sec_to_time_format(self, sec):
             m, s = divmod(sec, 60)
@@ -95,7 +96,8 @@ class GENErunner():
         else:
             n_samples = len(list(samples.values())[0])
             wallseconds = self.guess_sample_wallseconds * n_samples * 1.30 #add 30% more to ensure it works
-        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss")
+        if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
+        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
 
         print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
         self.parser.alter_base(group_var="general_timelim", value=int(wallseconds))
@@ -122,6 +124,7 @@ class GENErunner():
         print('SUBMITTED SBATCH ID',sbatch_id)
         return sbatch_id
 
+    # Checks to see if the slurm batch jobs are still in the queue. 
     def check_finished(self, sbatch_ids):
         #To check that certain sbatch_id's are no longer in the squeue
         command = f"ssh {self.host} 'squeue --me'"
@@ -144,7 +147,8 @@ class GENErunner():
         
         os.system(command)
 
-        
+    
+    # Checks to see if the GENE run needs to be continued
     def check_complete(self, run_ids):
         incomplete = []
         for run_id in run_ids:
