@@ -2,7 +2,7 @@ from GENE_ML.gene_ml.samplers.uniform import Uniform
 from GENE_ML.gene_ml.executors.ScanExecutor import ScanExecutor
 from GENE_ML.gene_ml.runners.GENErunner import GENErunner
 from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
-
+from time import sleep
 import os
 
 class DataGen():
@@ -10,8 +10,8 @@ class DataGen():
         self.remote_save_name = remote_save_name
         self.remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
         self.parser = GENE_scan_parser(config.save_dir, config.base_params_path, self.remote_save_dir)
-
-        
+        self.guess_sample_wallseconds = guess_sample_wallseconds
+        self.ex_id = ex_id
         #switching between using a time_model or guessing the walltime for a sample
         if type(previous_set) != type(None):
             previous_set.train_time_model(time_model)
@@ -26,9 +26,16 @@ class DataGen():
         # The executor should alter a base batch script to account for that less samples will be ran. 
         # num_workers = 2
         self.executor = ScanExecutor(num_workers, sampler, self.runner, ex_id)
-
-
-
+        
+    def run_and_recieve(self, test_percentage=0):
+        self.executor.start_runs()
+        while self.runner.check_finished():
+            sleep(self.guess_sample_wallseconds)
+            from GENE_ML.gene_ml.dataset.ScanData import ScanData
+            from config import config
+            data_name = self.ex_id
+            self.data_set = ScanData(data_name, self.parser, config.host, remote_path=self.remote_save_dir, test_percentage=test_percentage)
+        return self.data_set
 
 if __name__ == "__main__":
 
