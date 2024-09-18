@@ -5,6 +5,7 @@ import numpy as np
 
 class XGBoost(Model):
     def __init__(self):
+        self.model_type_id = 'xgb'
         self.regressor = XGBRegressor(objective='reg:squarederror')
 
     def train(self, x, y):
