@@ -26,15 +26,21 @@ class DataGen():
         # The executor should alter a base batch script to account for that less samples will be ran. 
         # num_workers = 2
         self.executor = ScanExecutor(num_workers, sampler, self.runner, ex_id)
-        
+    
+
+
     def run_and_recieve(self, test_percentage=0):
+        # Not functionining, need to change scan data so that it can look at the correct directory
         self.executor.start_runs()
-        while self.runner.check_finished():
-            sleep(self.guess_sample_wallseconds)
-            from GENE_ML.gene_ml.dataset.ScanData import ScanData
-            from config import config
-            data_name = self.ex_id
-            self.data_set = ScanData(data_name, self.parser, config.host, remote_path=self.remote_save_dir, test_percentage=test_percentage)
+        i = 1
+        while not self.executor.check_finished():
+            sleep(1)#self.guess_sample_wallseconds)
+            print(f'check {i}')
+            i+=1
+        from GENE_ML.gene_ml.dataset.ScanData import ScanData
+        from config import config
+        local_save_name = self.remote_save_name
+        self.data_set = ScanData(local_save_name, self.parser, config.host, remote_path=self.remote_save_dir, test_percentage=test_percentage)
         return self.data_set
 
 if __name__ == "__main__":

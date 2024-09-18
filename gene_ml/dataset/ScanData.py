@@ -39,6 +39,8 @@ class ScanData(DataSet):
         if not os.path.exists(os.path.join(os.getcwd(), 'scanlogs')):
             os.mkdir(os.path.join(os.getcwd(), 'scanlogs'))
 
+        print('SCAN LOG PATH', self.scan_log_path)
+
         if not os.path.exists(self.scan_log_path): 
             print('MAKING SCANLOG DIR') 
             os.mkdir(self.scan_log_path)
@@ -179,7 +181,10 @@ class ScanData(DataSet):
             dfs_inc_nans.append(df)
             df, n_samp, n_requested, n_samp_nonan = self.remove_nans(df)
             dfs.append(df); n_samp_all.append(n_samp); n_requested_all.append(n_requested); n_samp_nonan_all.append(n_samp_nonan)
-        self.df_inc_nan = pd.concat(dfs_inc_nans)
+        try:
+            self.df_inc_nan = pd.concat(dfs_inc_nans)
+        except: 
+            raise ValueError('Daniel Jordan Says: There is nothing to concatenate into the dataframe. This could be because the scanlog folder is empty or has the incorrect syntax.')
         return pd.concat(dfs), np.sum(n_samp_all), np.sum(n_requested_all), np.sum(n_samp_nonan_all)
         
     def remove_nans(self, df):
