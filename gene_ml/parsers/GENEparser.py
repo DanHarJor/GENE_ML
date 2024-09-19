@@ -7,7 +7,7 @@ from typing import List
 from copy import deepcopy
 import pandas as pd
 import re
-
+from config import config
 
 # class GENEparser():
 #     """An I/O parser for GENE
@@ -106,6 +106,10 @@ class GENE_scan_parser():
         """
         self.save_dir = save_dir
         self.base_params_dir = base_params_dir
+        if type(self.base_params_dir) == config.paramiko_file_type:
+            self.remote_base = True
+        else:
+            self.remote_base = False
         if base_params_dir!=None:
             self.base_namelist = f90nml.read(self.base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
         if remote_save_dir != None:
@@ -120,10 +124,29 @@ class GENE_scan_parser():
         self.base_namelist.patch(patch)
 
         print('Writing to', self.base_params_dir)
-        if os.path.exists(self.base_params_dir):
+        if os.path.exists(self.base_params_dir) and not self.remote_base:
             f90nml.write(self.base_namelist, self.base_params_dir, force=True)
+        elif self.remote_base:
+            self.base_params_dir.write(str(self.base_namelist))
         else:
             raise FileNotFoundError(f'Couldnt find {self.base_params_dir}')
+
+    def set_simtimelim(self,simtimelim_sec):
+        #convert seconds to GENE units of cref/Lref
+        # cref = sqrt(Tref / mref)
+        #!!Caution assumes Tref is given in the base parameters file and will not work if set to -1 for GENE computation
+
+        tref = self.base_namelist['units']['tref']
+        mref = self.base_namelist['units']['mref']
+        cref = np.sqrt(tref/mref)
+        lref = self.base_namelist['units']['lref']
+        
+        simtimelim_gene = simtimelim_sec / (cref / lref)
+        self.alter_base(group_var="general_simtimelim", value=simtimelim_gene)
+
+
+
+
 
     #puts in the paramaters with the GENE !scan functionality
     def write_input_file(self, params: dict, file_name='parameters'):
@@ -295,4 +318,5 @@ if __name__ == '__main__':
     parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
     # parser.alter_base(group_var="general_timelim",value=44000)
     # parser.write_input_file(params,file_name='parameters_scanwith')
-    parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')
+    # parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')
+    parser.set_simtimelim(10e-2)

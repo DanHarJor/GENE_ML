@@ -3,12 +3,14 @@ import sys
 import subprocess
 import numpy as np
 from collections.abc import Iterator
+from config import config
 class GENErunner():
-    def __init__(self, parser, host, sbatch_base_path, remote_run_dir, time_model=None, guess_sample_wallseconds=None, local_run_files_dir=os.path.join(os.getcwd(),'run_files')):
+    def __init__(self, parser, host, sbatch_base_path, remote_run_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None, local_run_files_dir=os.path.join(os.getcwd(),'run_files')):
         self.parser=parser
         self.host = host
         self.sbatch_base_path = sbatch_base_path
-        self.guess_sample_wallseconds = guess_sample_wallseconds
+        self.single_run_timelim = single_run_timelim
+        self.single_run_simtimelim = single_run_simtimelim
         self.remote_run_dir = remote_run_dir
         self.ssh_path = f"{self.host}:{self.remote_run_dir}"
         self.time_model = time_model
@@ -63,7 +65,16 @@ class GENErunner():
         #       in the scanfiles there are two files called geneerr.log and geneerr.log_0001_eff.
         #       Both seem the same and have a total wallclock time at the end. Can you help me decipher which time is the total wall time for all the samples to run
     
-    
+    def alter_remote_parameter(self, group_var, value, run_ids):
+        print('ALTERING REMOTE PARAMETER FOR RUN IDs:', run_ids)
+        for rid in run_ids:
+            from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
+            from config import config
+            remote_base_file = config.paramiko_sftp_client.open(os.path.join(self.remote_run_dir, 'auto_prob_'+rid), 'rw')
+            parser = GENE_scan_parser(config.save_dir, remote_base_file)
+            parser.alter_base(group_var=group_var, value=value)
+            remote_base_file.close()
+
     def continue_run(self, run_id):
         print('CONTINUING RUNS -', run_id)
         if type (run_id) is list:
@@ -92,17 +103,18 @@ class GENErunner():
         #using time model or guess sample walltime to get the walltime
         if type(self.time_model)!=type(None):
             times, errors = self.time_model.predict(samples)
-            wallseconds = np.sum(times) * 1.30
+            wallseconds = np.sum(times) * 1.3
         else:
             n_samples = len(list(samples.values())[0])
-            wallseconds = self.guess_sample_wallseconds * n_samples * 1.30 #add 30% more to ensure it works
+            wallseconds = self.single_run_timelim * n_samples * 1.1 #add 30% more to ensure it works
         if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
         print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
 
         print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
-        self.parser.alter_base(group_var="general_timelim", value=int(wallseconds))
+        self.parser.alter_base(group_var="general_timelim", value=int(self.single_run_timelim))
+        
         # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
-        self.parser.alter_base(group_var="general_simtimelim", value=int(wallseconds))
+        self.parser.set_simtimelim(self.single_run_simtimelim)
 
         print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{run_id}')
         self.parser.write_input_file(samples, file_name=f'parameters_{run_id}')
@@ -221,7 +233,7 @@ if __name__ == '__main__':
     base_params_path = os.path.join('/home/djdaniel/DEEPlasma/','parameters_base_dp')
     remote_save_dir='/scratch/project_462000451/gene_out/gene_auto/test'
     parser = GENE_scan_parser(base_params_path, remote_save_dir)
-    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path = '/home/djdaniel/DEEPlasma/sbatch_base_dp', guess_sample_wallseconds=81)
+    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path = '/home/djdaniel/DEEPlasma/sbatch_base_dp', single_run_timelim=81)
     runner.check_complete()
     # runner.clean()
     # runner.code_run(sampler.samples, run_id='test')

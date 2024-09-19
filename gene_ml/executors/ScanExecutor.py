@@ -86,7 +86,7 @@ if __name__ == '__main__':
     sampler = Uniform(parameters=parameters, bounds=bounds, num_samples=num_samples)
     base_params_path = os.path.join(os.getcwd(),'parameters_base_dp')
     parser = GENE_scan_parser(base_params_path)
-    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path='sbatch_base_dp', guess_sample_wallseconds=81)
+    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path='sbatch_base_dp', single_run_timelim=81)
     sbatch_base_path='/home/djdaniel/DEEPlasma/sbatch_base_dp'
     executor = ScanExecutor(num_workers=5 ,sampler=sampler, runner=runner)
     executor.start_runs()
