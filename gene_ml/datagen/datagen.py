@@ -6,18 +6,18 @@ from time import sleep
 import os
 
 class DataGen():
-    def __init__(self, config, sampler, remote_save_name, num_workers, ex_id, guess_sample_wallseconds=None, previous_set=None, time_model=None):
+    def __init__(self, config, sampler, remote_save_name, num_workers, ex_id, single_run_timelim=None, previous_set=None, time_model=None):
         self.remote_save_name = remote_save_name
         self.remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
         self.parser = GENE_scan_parser(config.save_dir, config.base_params_path, self.remote_save_dir)
-        self.guess_sample_wallseconds = guess_sample_wallseconds
+        self.single_run_timelim = single_run_timelim
         self.ex_id = ex_id
         #switching between using a time_model or guessing the walltime for a sample
         if type(previous_set) != type(None):
             previous_set.train_time_model(time_model)
             self.runner = GENErunner(self.parser, config.host, config.sbatch_base_path, config.remote_run_dir, time_model=previous_set.time_model, local_run_files_dir=config.local_run_files_dir)
         else:
-            self.runner = GENErunner(self.parser, config.host, config.sbatch_base_path, config.remote_run_dir, guess_sample_wallseconds=guess_sample_wallseconds, local_run_files_dir=config.local_run_files_dir)
+            self.runner = GENErunner(self.parser, config.host, config.sbatch_base_path, config.remote_run_dir, single_run_timelim=single_run_timelim, local_run_files_dir=config.local_run_files_dir)
         
         self.sampler = sampler
 
@@ -34,7 +34,7 @@ class DataGen():
         self.executor.start_runs()
         i = 1
         while not self.executor.check_finished():
-            sleep(1)#self.guess_sample_wallseconds)
+            sleep(1)#self.single_run_timelim)
             print(f'check {i}')
             i+=1
         from GENE_ML.gene_ml.dataset.ScanData import ScanData
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     import sys
     sys.path.append(os.path.join('home','djdaniel','GENE_UQ','config'))
     from config import config
-    make_executor(config ,sampler, remote_save_name='test', guess_sample_wallseconds=200, num_workers=2)
+    make_executor(config ,sampler, remote_save_name='test', single_run_timelim=200, num_workers=2)
 
 
 
