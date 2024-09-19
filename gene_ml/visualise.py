@@ -6,6 +6,7 @@ import numpy as np
 def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err=None, font_size=None):
     residuals = y_true - y_predicted
     mse=np.mean((y_true-y_predicted)**2)
+    mape = np.mean(np.abs(y_true-y_predicted)*100/y_true)
     if type(y_pred_err)!=type(None):
         ax.errorbar(y_true, residuals, yerr=y_pred_err, fmt='.', ecolor='red')
         # cb = ax.scatter(y_true, residuals, marker='.', c=y_pred_err, cmap='summer', zorder=10)
@@ -25,9 +26,13 @@ def residual_plot(ax, fig, y_true, y_predicted, var_name, title=None, y_pred_err
     ax.set_ylabel(f'Residuals, {var_name}', fontsize=font_size)
     if title != None:
         ax.set_title(f'{title}', fontsize=font_size)##: {len(y_true)} data points')
-    ax.annotate(f'MSE: {Decimal(mse):.2E}',
+    # ax.annotate(f'MSE: {Decimal(mse):.2E}%',
+    #         xy=(.7, .02), xycoords='axes fraction', fontsize=font_size)
+    ax.annotate(f'MAPE: {np.round(mape,1)}%',
             xy=(.7, .02), xycoords='axes fraction', fontsize=font_size)
     
+
+
     ax.set_xlim(left=0)
 
 def residual_hist(ax, fig, y_true, y_predicted, var_name, title=None, bins=50, orientation='horizontal'):
