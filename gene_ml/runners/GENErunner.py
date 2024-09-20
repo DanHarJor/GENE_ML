@@ -4,6 +4,7 @@ import subprocess
 import numpy as np
 from collections.abc import Iterator
 from config import config
+
 class GENErunner():
     def __init__(self, parser, host, sbatch_base_path, remote_run_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None, local_run_files_dir=os.path.join(os.getcwd(),'run_files')):
         self.parser=parser
@@ -69,13 +70,13 @@ class GENErunner():
         print('ALTERING REMOTE PARAMETER FOR RUN IDs:', run_ids)
         for rid in run_ids:
             from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
-            from config import config
             remote_base_file = config.paramiko_sftp_client.open(os.path.join(self.remote_run_dir, 'auto_prob_'+rid), 'rw')
             parser = GENE_scan_parser(config.save_dir, remote_base_file)
             parser.alter_base(group_var=group_var, value=value)
             remote_base_file.close()
 
-    def continue_run(self, run_id):
+    def continue_run(self, run_id, purpose='not_all_finished'):
+        # if 
         print('CONTINUING RUNS -', run_id)
         if type (run_id) is list:
             sbatch_ids = []
