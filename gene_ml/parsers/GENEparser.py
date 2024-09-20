@@ -7,6 +7,9 @@ from typing import List
 from copy import deepcopy
 import pandas as pd
 import re
+
+import sys
+
 from config import config
 
 # class GENEparser():
@@ -144,10 +147,6 @@ class GENE_scan_parser():
         simtimelim_gene = simtimelim_sec / (cref / lref)
         self.alter_base(group_var="general_simtimelim", value=simtimelim_gene)
 
-
-
-
-
     #puts in the paramaters with the GENE !scan functionality
     def write_input_file(self, params: dict, file_name='parameters'):
         namelist = self.base_namelist
@@ -256,7 +255,6 @@ class GENE_scan_parser():
             file.write(namelist_string)  
         
         return namelist_string
-    
 
     def read_output_file(self, out_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []
@@ -296,15 +294,29 @@ class GENE_scan_parser():
         df = pd.DataFrame(times, columns=['run_time'])
         return df
     
-    def read_scan_status(self, sbatch_err_path):
+    def read_scan_status(self, sbatch_err_path=None, gene_status_path=None):
+        # this is mostly for checking to see if a scan needs to be immediatly continued because some of the runs are unfinished
         scan_status = 'complete or some error'
-        with open(sbatch_err_path, 'r') as file:
+        with self.open_file(sbatch_err_path, 'r') as file:
             # Iterate through each line in the file
             for line_number, line in enumerate(file, start=1):
                 if 'DUE TO TIME LIMIT ***' in line:
                     scan_status = 'ready for continuation'
                 
         return scan_status
+    
+    def open_file(self, file_path, mode='r'):
+        if config.local_username in file_path:
+            try: 
+                file = open(file_path, mode)
+            except: 
+                file = config.paramiko_sftp_client.open(file_path, mode)
+        else:
+            try: 
+                file = config.paramiko_sftp_client.open(file_path, mode)
+            except:
+                file = open(file_path, mode)
+        return file
 
     
 if __name__ == '__main__':
@@ -319,4 +331,5 @@ if __name__ == '__main__':
     # parser.alter_base(group_var="general_timelim",value=44000)
     # parser.write_input_file(params,file_name='parameters_scanwith')
     # parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')
-    parser.set_simtimelim(10e-2)
+    # parser.set_simtimelim(10e-2)
+    parser.open_file('.gitignore')
