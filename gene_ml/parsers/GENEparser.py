@@ -134,18 +134,36 @@ class GENE_scan_parser():
         else:
             raise FileNotFoundError(f'Couldnt find {self.base_params_dir}')
 
+    def alter_parameters_file(self, parameters_path, group_var, value):
+        with self.open_file(parameters_path, 'r') as parameters_file:
+            nml = f90nml.read(parameters_file)
+        group, var = group_var
+        patch = {group: {var: value}}
+        nml.patch(patch)
+        with self.open_file(parameters_path, 'w') as parameters_file:
+            nml.write(parameters_file)
+
     def set_simtimelim(self,simtimelim_sec):
         #convert seconds to GENE units of cref/Lref
         # cref = sqrt(Tref / mref)
         #!!Caution assumes Tref is given in the base parameters file and will not work if set to -1 for GENE computation
+        if simtimelim_sec == None:    
+            return None
+        else:
+            tref = self.base_namelist['units']['tref']
+            if tref < 0:
+                #raise ValueError('To set the simulation time limit based on Tref it must be included in the base parameters file. This is needed to compute the units.')
+                tref = 0.501585859244667 # taken from origional parameters file
+                print('!!WARNING!!, tref is being computed by gene but we do not know what it is, so using a default value of', tref)
+            mref = self.base_namelist['units']['mref']
+            cref = np.sqrt(tref/mref)
+            lref = self.base_namelist['units']['lref']
 
-        tref = self.base_namelist['units']['tref']
-        mref = self.base_namelist['units']['mref']
-        cref = np.sqrt(tref/mref)
-        lref = self.base_namelist['units']['lref']
-        
-        simtimelim_gene = simtimelim_sec / (cref / lref)
-        self.alter_base(group_var="general_simtimelim", value=simtimelim_gene)
+            
+            simtimelim_gene = simtimelim_sec / (lref / cref)
+            print('\n\nPARSER\n, SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
+            print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
+            self.alter_base(group_var="general_simtimelim", value=simtimelim_gene)
 
     #puts in the paramaters with the GENE !scan functionality
     def write_input_file(self, params: dict, file_name='parameters'):
@@ -301,7 +319,7 @@ class GENE_scan_parser():
             # Iterate through each line in the file
             for line_number, line in enumerate(file, start=1):
                 if 'DUE TO TIME LIMIT ***' in line:
-                    scan_status = 'ready for continuation'
+                    scan_status = 'needs continuation'
                 
         return scan_status
     
