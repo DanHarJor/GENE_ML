@@ -16,7 +16,10 @@ class ScanExecutor():
         self.batches = [{k:v[i] for k,v in self.batches.items()} for i in range(self.num_workers)]
         self.run_ids =  [f'ex-{self.ex_id}_batch-{b_id}' for b_id in np.arange(len(self.batches))] #the runid will be the name of the folder in the remote_run_dir
         
-    
+    def print_check_parameters(self):
+        print('\nEXECUTOR, PRINT_CHECK_PARAMETERS\n', 100*'-')
+        self.runner.print_check_parameters(self.batches[0],self.run_ids[0])
+
     def start_runs(self):
         print(100 * "=")
         print("EXECUTING BATCHES")
@@ -38,7 +41,10 @@ class ScanExecutor():
     def check_complete(self):
         #To check that all the runs have been complete and a continue scan is not needed
         incomplete = self.runner.check_complete(self.run_ids)
-        print('EXECUTOR CHECK COMPLETE', incomplete)
+        if len(incomplete==0):
+            print('ALL SBATCH IDs ARE COMPLETE FOR THIS EXECUTOR')
+        else:
+            print('EXECUTOR, LIST OF INCOMPLETE SBATCH IDs', incomplete)
         return incomplete
     
     def continue_run(self):

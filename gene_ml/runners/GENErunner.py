@@ -59,13 +59,6 @@ class GENErunner():
         with open(f'temp/continue_{run_id}', "w") as continue_file:
             continue_file.write(continue_str)
         
-
-        
-        #Important question, what affects how long a gene simulation takes
-        #       Is it just paralellisation and numerical parameters or do the physicsal parameteters also matter.
-        #       in the scanfiles there are two files called geneerr.log and geneerr.log_0001_eff.
-        #       Both seem the same and have a total wallclock time at the end. Can you help me decipher which time is the total wall time for all the samples to run
-    
     def alter_remote_parameter(self, group_var, value, run_ids):
         print('ALTERING REMOTE PARAMETER FOR RUN IDs:', run_ids)
         for rid in run_ids:
@@ -89,7 +82,28 @@ class GENErunner():
         else:
             raise TypeError("run_id must be a list, for only one run_id please place into a list.")
 
-                
+    def print_check_parameters(self, samples, run_id):
+        #using time model or guess sample walltime to get the walltime
+        if type(self.time_model)!=type(None):
+            times, errors = self.time_model.predict(samples)
+            wallseconds = np.sum(times) * 1.3
+        else:
+            n_samples = len(list(samples.values())[0])
+            print('\n\nSINGLE RUN TIMELIM',self.single_run_timelim, 'N SAMPLES', n_samples)
+            wallseconds = self.single_run_timelim * n_samples * 1.1 #add 10% more to ensure it works
+        if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
+        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
+
+        print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
+        self.parser.alter_base(group_var="general_timelim", value=self.single_run_timelim * n_samples)
+        
+        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
+        # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
+        self.parser.set_simtimelim(self.single_run_simtimelim)
+
+        print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{run_id}')
+        print(self.parser.write_input_file(samples, file_name=f'parameters_{run_id}'))
+
 
     def code_run(self, samples, run_id):
         print('\nCODE RUN')
@@ -107,13 +121,15 @@ class GENErunner():
             wallseconds = np.sum(times) * 1.3
         else:
             n_samples = len(list(samples.values())[0])
-            wallseconds = self.single_run_timelim * n_samples * 1.1 #add 30% more to ensure it works
+            print('\n\nSINGLE RUN TIMELIM',self.single_run_timelim, 'N SAMPLES', n_samples)
+            wallseconds = self.single_run_timelim * n_samples * 1.1 #add 10% more to ensure it works
         if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
         print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
 
         print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
-        self.parser.alter_base(group_var="general_timelim", value=int(self.single_run_timelim))
+        self.parser.alter_base(group_var="general_timelim", value=self.single_run_timelim * n_samples)
         
+        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
         # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
         self.parser.set_simtimelim(self.single_run_simtimelim)
 
@@ -175,6 +191,16 @@ class GENErunner():
     def check_complete(self, run_ids):
         incomplete = []
         for run_id in run_ids:
+            #Trying to use new paramiko method for this.
+            # out_path = os.path.join(self.parser.remote_save_dir, run_id)
+            # command = f'ls {out_path}'
+            # stdin, stdout, stderr = config.paramiko_ssh_client.exec_command(command)
+            # lines = stdout.readlines()
+            # print('stdout',lines)
+            # scan_numbers = [out[-4:] for out in lines]
+            # print('SCAN NUMBERS',scan_numbers)
+            # geneerr_log_path = os.path.join(self.parser.remote_save_dir, run_id)
+
             regex_command = "ls | grep -E '[0-9]{7}.err$'"
             command = f"ssh {self.host} 'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} &&  {regex_command}; exit'"
             files = subprocess.check_output(command, shell=True, text=True)
@@ -183,7 +209,7 @@ class GENErunner():
             latest = files[np.argmax(ran_sbatch_ids)]
             self.retrieve_run_file(latest, run_id)
             scan_status = self.parser.read_scan_status(os.path.join(self.local_run_files_dir, latest))
-            if scan_status == 'ready for continuation':
+            if scan_status == 'needs continuation':
                 incomplete.append(run_id)
         return incomplete
     
