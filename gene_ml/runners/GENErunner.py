@@ -143,7 +143,7 @@ class GENErunner():
         remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
         remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
         print('MOVING PARAMETERS AND SBATCH FILES TO CORRECT LOCATION IN REMOTE; SUBMITTING GENE SBATCH')
-        os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit' && scp temp/parameters_{run_id} {self.host}:{remote_param_path} && scp temp/sbatch_{run_id} {self.host}:{remote_sbatch_path} && scp temp/continue_{run_id} {self.host}:{remote_continue_path}")
+        os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit' ; scp temp/parameters_{run_id} {self.host}:{remote_param_path} && scp temp/sbatch_{run_id} {self.host}:{remote_sbatch_path} && scp temp/continue_{run_id} {self.host}:{remote_continue_path}")
 
         print(f'CREATING auto_prob_{run_id} in {self.remote_run_dir}') 
         command = f"ssh {self.host} 'cd {self.remote_run_dir}/auto_prob_{run_id}; sbatch submit.cmd; exit'"

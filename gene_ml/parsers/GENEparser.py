@@ -199,7 +199,7 @@ class GENE_scan_parser():
             group_end = group_start+namelist_string[group_start:].find(f'/')
             # print('GROUP',namelist_string[group_start:group_end])
 
-            var_start = group_start+namelist_string[group_start:group_end].find(var_name)
+            var_start = group_start+namelist_string[group_start:group_end].find(var_name+' ') #space ensures it is not apart of another name. Only works if there is a space after every variable
             var_end = var_start+namelist_string[var_start:group_end].find("\n")
             # print('VARLOC',var_start,var_end)
             # print('VAR',namelist_string[var_start:var_end])
