@@ -41,7 +41,8 @@ class ScanExecutor():
     def check_complete(self):
         #To check that all the runs have been complete and a continue scan is not needed
         incomplete = self.runner.check_complete(self.run_ids)
-        if len(incomplete==0):
+        print('EXECUTOR, LIST OF INCOMPLETE SBATCH IDs', incomplete)
+        if len(incomplete)==0:
             print('ALL SBATCH IDs ARE COMPLETE FOR THIS EXECUTOR')
         else:
             print('EXECUTOR, LIST OF INCOMPLETE SBATCH IDs', incomplete)
