@@ -7,10 +7,10 @@ from typing import List
 from copy import deepcopy
 import pandas as pd
 import re
+from ..tools import sec_to_time_format 
 
 import sys
 
-from config import config
 
 # class GENEparser():
 #     """An I/O parser for GENE
@@ -27,13 +27,13 @@ from config import config
 #         Reads the output file to python format
 
 #     """
-#     def __init__(self, base_params_dir=None, remote_save_dir=None):
+#     def __init__(self, base_params_path=None, remote_save_dir=None):
 #         """
-#         Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
+#         Generates the base f90nml namelist from the GENE parameters file at base_params_path.
 
 #         Parameters
 #         ----------
-#             base_params_dir (string or path): The directory pointing to the base GENE parameters file.
+#             base_params_path (string or path): The directory pointing to the base GENE parameters file.
 #             The base GENE parameters file must contain all parameters necessary for GENE to run.
 #             Any parameters to be sampled will be inserted into the base parameter file before each run.
 #             Any value of a sampled parameter in the base file will be ignored. 
@@ -41,65 +41,66 @@ from config import config
 #         -------
 #             Nothing 
 #         """
-#         if base_params_dir!=None:
-#             self.base_namelist = f90nml.read(base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
+#         if base_params_path!=None:
+#             self.base_namelist = f90nml.read(base_params_path) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
 #         if remote_save_dir != None:
 #             self.remote_save_dir = remote_save_dir
 
-class GENE_single_parser():
+# class GENE_single_parser():
 
-    def write_input_file(self, params: dict, save_dir):
-        """
-        Write the GENE input file to the run directory specified. 
+#     def write_input_file(self, params: dict, save_dir):
+#         """
+#         Write the GENE input file to the run directory specified. 
         
-        Parameters
-        ----------
-            params (dict): The keys store strings of the names of the parameters as specified in the enchanted surrogates *_config.yaml configuration file.
-            The values stores floats of the parameter values to be ran in GENE.
+#         Parameters
+#         ----------
+#             params (dict): The keys store strings of the names of the parameters as specified in the enchanted surrogates *_config.yaml configuration file.
+#             The values stores floats of the parameter values to be ran in GENE.
 
-            rprint('Writing to', save_dir)
-        if os.path.exists(save_dir):
-            input_fpath = os.path.join(save_dir, 'input.tglf')
-            subprocess.run(['touch', f'{input_fpath}'])
-        else:
-            raise FileNotFoundError(f'Couldnt find {save_dir}')un_dir (string or path): The file system directory where runs are to be stored
+#             rprint('Writing to', save_dir)
+#         if os.path.exists(save_dir):
+#             input_fpath = os.path.join(save_dir, 'input.tglf')
+#             subprocess.run(['touch', f'{input_fpath}'])
+#         else:
+#             raise FileNotFoundError(f'Couldnt find {save_dir}')un_dir (string or path): The file system directory where runs are to be stored
 
-        """
-        print('Writing to', save_dir)
-        if os.path.exists(save_dir):
-            self.input_fpath = os.path.join(save_dir, 'parameters')
-        else:
-            raise FileNotFoundError(f'Couldnt find {save_dir}')
-
-        params_keys = list(params.keys())
-        params_values = list(params.values())
-        patch = {}
-        patch['in_out'] = {'diagdir':self.remote_save_dir}
-        for key, value in zip(params_keys,params_values):
-            group_name, variable_name = key.split('-')
-            if list(patch.keys()).count(group_name) > 0:
-                patch[group_name][variable_name] = value
-            else: patch[group_name] = {variable_name:value}
-
-
-        namelist = self.base_namelist
-        patch = f90nml.namelist.Namelist(patch)
-        namelist.patch(patch)
+#         """
+#         print('Writing to', save_dir)
+#         if os.path.exists(save_dir):
+#             self.input_fpath = os.path.join(save_dir, 'parameters')
+#         else:
+#             raise FileNotFoundError(f'Couldnt find {save_dir}')
         
-        f90nml.write(namelist, self.input_fpath)
 
-    # what is returned here is returned to the runner for a single code run, which goes though the base executor to get to the future 
-    def read_output_file(self, save_dir: str):
-        raise NotImplementedError
+#         params_keys = list(params.keys())
+#         params_values = list(params.values())
+#         patch = {}
+#         patch['in_out'] = {'diagdir':self.remote_save_dir}
+#         for key, value in zip(params_keys,params_values):
+#             group_name, variable_name = key.split('-')
+#             if list(patch.keys()).count(group_name) > 0:
+#                 patch[group_name][variable_name] = value
+#             else: patch[group_name] = {variable_name:value}
+
+
+#         namelist = self.base_namelist
+#         patch = f90nml.namelist.Namelist(patch)
+#         namelist.patch(patch)
+        
+#         f90nml.write(namelist, self.input_fpath)
+
+#     # what is returned here is returned to the runner for a single code run, which goes though the base executor to get to the future 
+#     def read_output_file(self, save_dir: str):
+#         raise NotImplementedError
     
 class GENE_scan_parser(): 
-    def __init__(self, save_dir, base_params_dir=None, remote_save_dir=None):
+    def __init__(self, config, remote_save_dir=None):
         """
-        Generates the base f90nml namelist from the GENE parameters file at base_params_dir.
+        Generates the base f90nml namelist from the GENE parameters file at base_params_path.
 
         Parameters
         ----------
-            base_params_dir (string or path): The directory pointing to the base GENE parameters file.
+            base_params_path (string or path): The directory pointing to the base GENE parameters file.
             The base GENE parameters file must contain all parameters necessary for GENE to run.
             Any parameters to be sampled will be inserted into the base parameter file before each run.
             Any value of a sampled parameter in the base file will be ignored. 
@@ -107,32 +108,33 @@ class GENE_scan_parser():
         -------
             Nothing 
         """
-        self.save_dir = save_dir
-        self.base_params_dir = base_params_dir
-        if type(self.base_params_dir) == config.paramiko_file_type:
+        self.config = config
+        self.save_dir = config.save_dir
+        self.base_params_path = config.base_params_path
+        self.base_namelist = f90nml.read(self.base_params_path)
+        self.base_sbatch_path = config.base_sbatch_path
+        if type(self.base_params_path) == self.config.paramiko_file_type:
             self.remote_base = True
         else:
             self.remote_base = False
-        if base_params_dir!=None:
-            self.base_namelist = f90nml.read(self.base_params_dir) #odict_keys(['parallelization', 'box', 'in_out', 'general', 'geometry', '_grp_species_0', '_grp_species_1', 'units'])
         if remote_save_dir != None:
             self.remote_save_dir = remote_save_dir
 
-    def alter_base(self, group_var, value):
-        #currently only works for variables that only appear in one group, not omn as it is in each species group
-        #var example var="general_timelim", group_variable for fortran parameters file.
-        group, var = group_var.split("_")
-        patch = {group: {var: value}}
+    # def alter_base(self, group_var, value):
+    #     #currently only works for variables that only appear in one group, not omn as it is in each species group
+    #     #var example var="general_timelim", group_variable for fortran parameters file.
+    #     group, var = group_var.split("_")
+    #     patch = {group: {var: value}}
 
-        self.base_namelist.patch(patch)
+    #     self.base_namelist.patch(patch)
 
-        print('Writing to', self.base_params_dir)
-        if os.path.exists(self.base_params_dir) and not self.remote_base:
-            f90nml.write(self.base_namelist, self.base_params_dir, force=True)
-        elif self.remote_base:
-            self.base_params_dir.write(str(self.base_namelist))
-        else:
-            raise FileNotFoundError(f'Couldnt find {self.base_params_dir}')
+    #     print('Writing to', self.base_params_path)
+    #     if os.path.exists(self.base_params_path) and not self.remote_base:
+    #         f90nml.write(self.base_namelist, self.base_params_path, force=True)
+    #     elif self.remote_base:
+    #         self.base_params_path.write(str(self.base_namelist))
+    #     else:
+    #         raise FileNotFoundError(f'Couldnt find {self.base_params_path}')
 
     def alter_parameters_file(self, parameters_path, group_var, value):
         with self.open_file(parameters_path, 'r') as parameters_file:
@@ -143,30 +145,66 @@ class GENE_scan_parser():
         with self.open_file(parameters_path, 'w') as parameters_file:
             nml.write(parameters_file)
 
-    def set_simtimelim(self,simtimelim_sec):
+    def set_simtimelim(self,simtimelim_sec, parameters_path):
         #convert seconds to GENE units of cref/Lref
         # cref = sqrt(Tref / mref)
         #!!Caution assumes Tref is given in the base parameters file and will not work if set to -1 for GENE computation
-        if simtimelim_sec == None:    
+        
+        if simtimelim_sec == None:
             return None
         else:
-            tref = self.base_namelist['units']['tref']
-            if tref < 0:
-                #raise ValueError('To set the simulation time limit based on Tref it must be included in the base parameters file. This is needed to compute the units.')
-                tref = 0.501585859244667 # taken from origional parameters file
-                print('!!WARNING!!, tref is being computed by gene but we do not know what it is, so using a default value of', tref)
-            mref = self.base_namelist['units']['mref']
-            cref = np.sqrt(tref/mref)
-            lref = self.base_namelist['units']['lref']
+            with self.open_file(parameters_path, 'r') as parameters_file:
+                nml = f90nml.read(parameters_file)
+                tref = nml['units']['tref']
+                if tref < 0:
+                    #raise ValueError('To set the simulation time limit based on Tref it must be included in the base parameters file. This is needed to compute the units.')
+                    tref = 0.501585859244667 # taken from origional parameters file
+                    print('!!WARNING!!, tref is being computed by gene but we do not know what it is, so using a default value of', tref)
+                mref = nml['units']['mref']
+                cref = np.sqrt(tref/mref)
+                lref = nml['units']['lref']
+                
+                simtimelim_gene = simtimelim_sec / (lref / cref)
+                print('\n\nPARSER\n, SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
+                print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
+                self.alter_parameters_file(parameters_path=parameters_path, group_var=["general","simtimelim"], value=simtimelim_gene)
 
-            
-            simtimelim_gene = simtimelim_sec / (lref / cref)
-            print('\n\nPARSER\n, SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
-            print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
-            self.alter_base(group_var="general_simtimelim", value=simtimelim_gene)
+    def base_to_remote(self, remote_param_path, remote_sbatch_path):
+        print('PLACING BASE PARAMETERS TO REMOTE PROBLEM DIRECTORY')
+        self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
+        self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)
+
+
+    def write_sbatch(self, sbatch_path, sbatch_continue_path, wallseconds):
+        with self.open_file(sbatch_path, 'r') as sbatch_file:
+            sbatch = str(sbatch_file.read())
+            wall_clock_limit = sec_to_time_format(wallseconds)
+            print('DEBUG', type(sbatch), sbatch)
+            sbatch_lines = sbatch.split('\n')
+            wall_loc = 0
+            for i in range(len(sbatch_lines)):
+                if '#SBATCH -t' in sbatch_lines[i]: 
+                    wall_loc = i
+                    break
+            sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallremote_run_dir = '/project/project_462000451/gene/'clock limit, dd-hh:mm:ss"
+
+            sbatch = "\n".join(sbatch_lines)
+        
+        with self.open_file(sbatch_path, 'w') as sbatch_file:
+            sbatch_file.write(sbatch)
+
+        # Make contiue scan script
+        for i, line in enumerate(sbatch_lines):
+            if "./scanscript" in line:
+                sbatch_lines[i] = line.replace("./scanscript", "./scanscript --continue_scan")
+
+        continue_str = "\n".join(sbatch_lines)
+        with self.open_file(sbatch_continue_path, "w") as continue_file:
+            continue_file.write(continue_str)
 
     #puts in the paramaters with the GENE !scan functionality
-    def write_input_file(self, params: dict, file_name='parameters'):
+    def write_input_file(self, params: dict, parameters_path):
+        
         namelist = self.base_namelist
         namelist_string=str(namelist)
         
@@ -263,13 +301,9 @@ class GENE_scan_parser():
 
         #Writing the final namelist stirng to file. This is the scan parameters file.
                 # checking run dir exists and making Path for scan file
-        print('Writing to', self.save_dir)
-        if os.path.exists(self.save_dir):
-            input_fpath = os.path.join(self.save_dir, file_name)
-        else:
-            raise FileNotFoundError(f'Couldnt find {self.save_dir}')
-
-        with open(input_fpath, 'w') as file:
+        print('Writing to', parameters_path)
+    
+        with self.open_file(parameters_path, 'w') as file:
             file.write(namelist_string)  
         
         return namelist_string
@@ -324,14 +358,14 @@ class GENE_scan_parser():
         return scan_status
     
     def open_file(self, file_path, mode='r'):
-        if config.local_username in file_path:
+        if self.config.local_username in file_path:
             try: 
                 file = open(file_path, mode)
             except: 
-                file = config.paramiko_sftp_client.open(file_path, mode)
+                file = self.config.paramiko_sftp_client.open(file_path, mode)
         else:
             try: 
-                file = config.paramiko_sftp_client.open(file_path, mode)
+                file = self.config.paramiko_sftp_client.open(file_path, mode)
             except:
                 file = open(file_path, mode)
         return file
@@ -345,7 +379,7 @@ if __name__ == '__main__':
     # 'box-kymin':generator.uniform(0.05,1,5)
     params = {'species-omn':omn,
           '_grp_species_1-omt':generator.uniform(10,70,5)}
-    parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_dir = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
+    parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_path = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
     # parser.alter_base(group_var="general_timelim",value=44000)
     # parser.write_input_file(params,file_name='parameters_scanwith')
     # parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')

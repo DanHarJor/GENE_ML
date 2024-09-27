@@ -16,9 +16,9 @@ class ScanExecutor():
         self.batches = [{k:v[i] for k,v in self.batches.items()} for i in range(self.num_workers)]
         self.run_ids =  [f'ex-{self.ex_id}_batch-{b_id}' for b_id in np.arange(len(self.batches))] #the runid will be the name of the folder in the remote_run_dir
         
-    def print_check_parameters(self):
+    def pre_run_check(self):
         print('\nEXECUTOR, PRINT_CHECK_PARAMETERS\n', 100*'-')
-        self.runner.print_check_parameters(self.batches[0],self.run_ids[0])
+        self.runner.pre_run_check(self.batches[0],self.run_ids[0])
 
     def start_runs(self):
         print(100 * "=")
@@ -93,7 +93,7 @@ if __name__ == '__main__':
     sampler = Uniform(parameters=parameters, bounds=bounds, num_samples=num_samples)
     base_params_path = os.path.join(os.getcwd(),'parameters_base_dp')
     parser = GENE_scan_parser(base_params_path)
-    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path='sbatch_base_dp', single_run_timelim=81)
-    sbatch_base_path='/home/djdaniel/DEEPlasma/sbatch_base_dp'
+    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', base_sbatch_path='sbatch_base_dp', single_run_timelim=81)
+    base_sbatch_path='/home/djdaniel/DEEPlasma/sbatch_base_dp'
     executor = ScanExecutor(num_workers=5 ,sampler=sampler, runner=runner)
     executor.start_runs()
