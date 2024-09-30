@@ -4,7 +4,7 @@
 
 FROM continuumio/miniconda3
 #COPY <host_src> <container_dest>
-COPY docker_ssh_config /home/root/.ssh/config 
+COPY your_docker_ssh_config /home/root/.ssh/config 
 #ssh key copy
 COPY your_private_key_ignore /root/.ssh/your_private_key_ignore
 COPY gene_ml_env.yml /home/root/
