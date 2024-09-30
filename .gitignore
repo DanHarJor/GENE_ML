@@ -1,3 +1,7 @@
 *__pycache__*
 *parameters_scanwith
 condarc_safe
+
+*ignore*
+Dockerfile
+
