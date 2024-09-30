@@ -1,0 +1,13 @@
+#navigate to the directory of this folder in the terminal and run:
+#docker build -t gene_ml_image .
+#this will make the docker image gene_ml_image which can be used to run the container with the docker_make.sh file.
+
+FROM continuumio/miniconda3
+#COPY <host_src> <container_dest>
+COPY docker_ssh_config /home/root/.ssh/config 
+#ssh key copy
+COPY your_private_key_ignore /root/.ssh/your_private_key_ignore
+COPY gene_ml_env.yml /home/root/
+RUN conda env create --name gene_ml --file=/home/root/gene_ml_env.yml
+RUN apt-get update && apt-get install vim -y
+WORKDIR /home/your_user/DEEPlasma

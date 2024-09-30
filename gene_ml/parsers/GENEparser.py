@@ -113,7 +113,7 @@ class GENE_scan_parser():
         self.base_params_path = config.base_params_path
         self.base_namelist = f90nml.read(self.base_params_path)
         self.base_sbatch_path = config.base_sbatch_path
-        if type(self.base_params_path) == self.config.paramiko_file_type:
+        if str(type(self.base_params_path)) == "<class 'paramiko.sftp_file.SFTPFile'>":
             self.remote_base = True
         else:
             self.remote_base = False
@@ -165,31 +165,30 @@ class GENE_scan_parser():
                 lref = nml['units']['lref']
                 
                 simtimelim_gene = simtimelim_sec / (lref / cref)
-                print('\n\nPARSER\n, SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
+                print('SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
                 print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
                 self.alter_parameters_file(parameters_path=parameters_path, group_var=["general","simtimelim"], value=simtimelim_gene)
 
     def base_to_remote(self, remote_param_path, remote_sbatch_path):
-        print('PLACING BASE PARAMETERS TO REMOTE PROBLEM DIRECTORY')
+        print('PLACING BASE PARAMETERS AND SBATCH TO REMOTE PROBLEM DIRECTORY')
         self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
-        self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)
+        self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
 
 
     def write_sbatch(self, sbatch_path, sbatch_continue_path, wallseconds):
+        print('WRITE SBATCH')
         with self.open_file(sbatch_path, 'r') as sbatch_file:
-            sbatch = str(sbatch_file.read())
+            sbatch_lines = sbatch_file.readlines()
             wall_clock_limit = sec_to_time_format(wallseconds)
-            print('DEBUG', type(sbatch), sbatch)
-            sbatch_lines = sbatch.split('\n')
             wall_loc = 0
             for i in range(len(sbatch_lines)):
                 if '#SBATCH -t' in sbatch_lines[i]: 
                     wall_loc = i
                     break
-            sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallremote_run_dir = '/project/project_462000451/gene/'clock limit, dd-hh:mm:ss"
+            sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  ## wallclock limit, dd-hh:mm:ss"
 
-            sbatch = "\n".join(sbatch_lines)
-        
+            sbatch = "".join(sbatch_lines)
+
         with self.open_file(sbatch_path, 'w') as sbatch_file:
             sbatch_file.write(sbatch)
 
@@ -198,9 +197,10 @@ class GENE_scan_parser():
             if "./scanscript" in line:
                 sbatch_lines[i] = line.replace("./scanscript", "./scanscript --continue_scan")
 
-        continue_str = "\n".join(sbatch_lines)
+        continue_str = "".join(sbatch_lines)
         with self.open_file(sbatch_continue_path, "w") as continue_file:
             continue_file.write(continue_str)
+        return sbatch
 
     #puts in the paramaters with the GENE !scan functionality
     def write_input_file(self, params: dict, parameters_path):

@@ -3,6 +3,7 @@ import sys
 import subprocess
 import numpy as np
 from collections.abc import Iterator
+import re
 from ..tools import sec_to_time_format
 
 class GENErunner():
@@ -16,47 +17,7 @@ class GENErunner():
         self.time_model = time_model
         self.local_run_files_dir = config.local_run_files_dir
         self.max_wallseconds = 0
-
         self.config = config
-
-    # def generate_sbatch(self, wallseconds , run_id):
-
-    #     sbatch = open(self.base_sbatch_path, "r").read()
-    #     # parameters_scan = open(parameters_path, "r").read()
-
-    #     # first_scanwith_loc = parameters_scan.find('!scanwith:')
-    #     # n_samples = len(parameters_scan[first_scanwith_loc:parameters_scan.find('\n', first_scanwith_loc)].split(','))-1
-    #     wall_clock_limit = sec_to_time_format(wallseconds)
-    #     print(f'WALL CLOCK LIMIT FOR BATCH {run_id}:  ', wall_clock_limit)
-    #     sbatch_lines = sbatch.split('\n')
-    #     wall_loc = 0
-    #     for i in range(len(sbatch_lines)):
-    #         if '#SBATCH -t' in sbatch_lines[i]: 
-    #             wall_loc = i
-    #             break
-    #     sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallremote_run_dir = '/project/project_462000451/gene/'clock limit, dd-hh:mm:ss"
-
-    #     sbatch = "\n".join(sbatch_lines)
-    #     if not os.path.exists('temp/'): os.mkdir('temp/')
-    #     with open(f'temp/sbatch_{run_id}', "w") as sbatch_file:
-    #         sbatch_file.write(sbatch)
-
-    #     for i, line in enumerate(sbatch_lines):
-    #         if "./scanscript" in line:
-    #             sbatch_lines[i] = line.replace("./scanscript", "./scanscript --continue_scan")
-
-    #     continue_str = "\n".join(sbatch_lines)
-    #     with open(f'temp/continue_{run_id}', "w") as continue_file:
-    #         continue_file.write(continue_str)
-        
-    def alter_remote_parameter(self, group_var, value, run_ids):
-        print('ALTERING REMOTE PARAMETER FOR RUN IDs:', run_ids)
-        for rid in run_ids:
-            from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
-            remote_base_file = self.config.paramiko_sftp_client.open(os.path.join(self.remote_run_dir, 'auto_prob_'+rid), 'rw')
-            parser = GENE_scan_parser(self.config.save_dir, remote_base_file)
-            parser.alter_base(group_var=group_var, value=value)
-            remote_base_file.close()
 
     def continue_run(self, run_id, purpose='not_all_finished'):
         # if 
@@ -95,10 +56,14 @@ class GENErunner():
         remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
         remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
     
-        print(f"CREATING PROBLEM DIRECTORY")
-        command = f'cd {remote_problem_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit'
-        result = self.config.paramiko_ssh_client.exec_command(command)
-        print('RESULT FROM COMMAND:',result)
+        try:
+            print(f"CHECKING IF PROBLEM DIRECTORY EXISTS?")
+            directory_details = self.config.paramiko_sftp_client.stat(remote_problem_dir)
+        except FileNotFoundError:
+            print('REMOTE PROBLEM DIRECTORY DOES NOT EXIST, CREATING IT NOW:', remote_problem_dir)
+            command = f'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit'
+            _, stdout, _ = self.config.paramiko_ssh_client.exec_command(command)
+            print('RESULT FROM COMMAND:',stdout.read())
 
         self.parser.base_to_remote(remote_param_path, remote_sbatch_path)
 
@@ -109,60 +74,29 @@ class GENErunner():
         # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
         self.parser.set_simtimelim(self.single_run_simtimelim, parameters_path=remote_param_path)
 
-        self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds)
+        print('SBATCH')
+        print(self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds))
 
         print(f'PARSING SAMPLES TO INPUT FILE at:',remote_param_path)
         print(self.parser.write_input_file(samples, remote_param_path))
 
-
     def code_run(self, samples, run_id):
+        self.pre_run_check(samples, run_id)
+
         print('\nCODE RUN')
         # make results directory
-        error_code = os.system(f"ssh {self.host} 'mkdir -p {self.parser.remote_save_dir}'")
-        if error_code != 0: 
-            raise SystemError('When making the results directory with ssh there was an error')
+        command = f'mkdir -p {self.parser.remote_save_dir}'
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
+        print('RESULT OF MAKING REMOTE SAVE DIRECTORY,', stdout.read())
 
-        if not os.path.exists('temp/'):
-            os.mkdir('temp/')
-
-        #using time model or guess sample walltime to get the walltime
-        if type(self.time_model)!=type(None):
-            times, errors = self.time_model.predict(samples)
-            wallseconds = np.sum(times) * 1.3
-        else:
-            n_samples = len(list(samples.values())[0])
-            print('\n\nSINGLE RUN TIMELIM',self.single_run_timelim, 'N SAMPLES', n_samples)
-            wallseconds = self.single_run_timelim * n_samples + 60*5 #add 5min more to give gene time to close
-        if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
-        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
-
-        print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
-        self.parser.alter_base(group_var="general_timelim", value=self.single_run_timelim * n_samples)
-        
-        print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{run_id}')
-        self.parser.write_input_file(samples, file_name=f'parameters_{run_id}')
-        print(f'GENERATING SBATCH FROM PARAMETERS FILE at temp/sbatch_{run_id}')
-        
-        self.generate_sbatch(wallseconds,run_id=run_id)
-        print('CREATING A NEW PROBLEM DIR WITH SSH')
         remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
-        remote_param_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'parameters')
-        remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
-        remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
-        
-        print('MOVING PARAMETERS AND SBATCH FILES TO CORRECT LOCATION IN REMOTE; SUBMITTING GENE SBATCH')
-        os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit' ; scp temp/parameters_{run_id} {self.host}:{remote_param_path} && scp temp/sbatch_{run_id} {self.host}:{remote_sbatch_path} && scp temp/continue_{run_id} {self.host}:{remote_continue_path}")
 
-        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
-        # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
-        self.parser.set_simtimelim(self.single_run_simtimelim, remote_param_path)
-
-        print(f'CREATING auto_prob_{run_id} in {self.remote_run_dir}') 
-        command = f"ssh {self.host} 'cd {self.remote_run_dir}/auto_prob_{run_id}; sbatch submit.cmd; exit'"
-        sbatch_id = subprocess.check_output(command, shell=True, text=True)
-        sbatch_id = sbatch_id.strip().split(' ')[-1]
-        
-        print('SUBMITTED SBATCH ID',sbatch_id)
+        run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id}; sbatch submit.cmd; exit'
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
+        out = (stdout.read(), stderr.read())
+        sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out[0])
+        print('OUT:', out[0], 'ERROR?:', out[1])
+        print('SUBMITTED SBATCH ID:', sbatch_id)
         return sbatch_id
     
     def kill_runs(self, sbatch_ids):
