@@ -3,13 +3,13 @@ import sys
 sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/')    
 import os
 import time
+from ..tools import sec_to_time_format
 
 class ScanExecutor():
     def __init__(self, num_workers, sampler, runner, ex_id, **kwargs):
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
         self.runner = runner
-        self.remote_save_dir = self.runner.parser.remote_save_dir
         self.ex_id = ex_id
         self.sbatch_ids = [] #the sbatch id is the slurm sbatch id
         self.batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
@@ -25,52 +25,41 @@ class ScanExecutor():
         print("EXECUTING BATCHES")
         #self.batches is a list of dictionaries where each one is a subset of the entire samples dictionary.
         for batch, rid in zip(self.batches, self.run_ids):
-            self.runner.parser.remote_save_dir = os.path.join(self.remote_save_dir, f'{rid}')
             self.sbatch_ids.append(self.runner.code_run(batch, run_id=rid))
+        
 
     def check_finished(self):
         #To check that the executors sbatch id's are no longer in the squeue
-        print('BATCH IDS', self.sbatch_ids)
         finished = self.runner.check_finished(self.sbatch_ids)
-        print('EXECUTOR CHECK FINISHED', finished)
+        print('EXECUTOR, CHECK FINISHED', finished)
         return finished
     
+    def wait_till_finished(self, check_interval=5):
+        self.runner.wait_till_finished(self.sbatch_ids, check_interval)
+
     def kill(self):
         self.runner.kill_runs(self.sbatch_ids)
     
     def check_complete(self):
         #To check that all the runs have been complete and a continue scan is not needed
-        incomplete = self.runner.check_complete(self.run_ids)
-        print('EXECUTOR, LIST OF INCOMPLETE SBATCH IDs', incomplete)
-        if len(incomplete)==0:
+        complete = self.runner.check_complete(self.run_ids)
+        print('EXECUTOR, LIST OF COMPLETE SBATCH IDs', complete)
+        if all(complete):
             print('ALL SBATCH IDs ARE COMPLETE FOR THIS EXECUTOR')
         else:
-            print('EXECUTOR, LIST OF INCOMPLETE SBATCH IDs', incomplete)
-        return incomplete
+            print('EXECUTOR, LIST OF INCOMPLETE RUN IDs', np.array(self.run_ids)[~complete])
+        return complete
     
-    def continue_run(self):
-        incomplete = self.check_complete()
-        if len(incomplete)==0:
-            print('ALL RUNS HAVE BEEN COMPLETED OR FAILED')
+    def continue_incomplete(self):
+        complete = self.check_complete()
+        if all(complete):
+            print('ALL RUNS HAVE BEEN COMPLETED')
             return []
-        sbatch_ids = self.runner.continue_run(incomplete)
+        sbatch_ids = []
+        for run_id in self.run_ids[not complete]:
+            sbatch_ids.append(self.runner.continue_run(run_id))
         self.sbatch_ids = self.sbatch_ids + sbatch_ids
         return sbatch_ids
-
-    def continue_n_times(self, n, check_every=30):
-        for i in range(n):
-            print('EXECUTING CONTINUE NUMBER:', i)
-            start = time.time()
-            while not self.check_finished():
-                now = time.time()
-                print('Waiting untill the runs are finished. TIMER: ', self.runner.sec_to_time_format(now-start), ' dd-hh:mm:ss')
-                time.sleep(check_every)
-            print('RUNS ARE FINISHED')
-
-            continue_result = self.continue_run()
-            if len(continue_result) == 0:
-                break #all runs have finished or failed, there is nothing to continue
-        print('END OF CONTINUE N TIMES')
 
     def delete(self):
         print('EXECUTOR DELETE')
@@ -79,6 +68,28 @@ class ScanExecutor():
         print('EXECUTOR DELETING run_files')
         for sbatch_id in self.sbatch_ids:
             os.system(f'rm run_files/auto_gene.{sbatch_id}.out')
+
+    def increment_sim_time_lim(self, simtimelims):
+        # This is only to be ran when there is a set of gene problem directories already created by the start_runs function.
+        # Check to see there is nothing running that was started by this executor
+        self.wait_till_finished()
+        if not all(self.check_complete()):
+            raise TimeoutError('Daniel Says: gene_status shows incomplete individual gene runs. This is likely because the wallclock limit was hit. Check how this is calculated')
+        for simtimelim in simtimelims:
+            print('STARTING NEXT SIMTIMELIM:',simtimelim, 'out of',simtimelims)
+            self.sbatch_ids += self.runner.continue_with_increased_simtimelim(self.run_ids,simtimelim)
+            self.wait_till_finished()
+        
+        print('FINISHED INCRIMENTING SIM TIME LIM')
+
+    def continue_increment(self, group_var, values):
+        self.wait_till_finished()
+        for value in values:
+            self.sbatch_ids += self.runner.continue_with_new_param(self.run_ids, group_var, value)
+            self.wait_till_finished()
+            latest_scanfiles = self.runner.get_latest_scanfiles_path(self.run_ids)
+            for latest_sf in latest_scanfiles:
+                self.runner.parser.rename_important_scanfiles(latest_sf, prefix='-'.join(group_var)+'_value')
     
 if __name__ == '__main__':
     import os

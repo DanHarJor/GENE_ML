@@ -94,7 +94,7 @@ import sys
 #         raise NotImplementedError
     
 class GENE_scan_parser(): 
-    def __init__(self, config, remote_save_dir=None):
+    def __init__(self, config):
         """
         Generates the base f90nml namelist from the GENE parameters file at base_params_path.
 
@@ -117,9 +117,6 @@ class GENE_scan_parser():
             self.remote_base = True
         else:
             self.remote_base = False
-        if remote_save_dir != None:
-            self.remote_save_dir = remote_save_dir
-
     # def alter_base(self, group_var, value):
     #     #currently only works for variables that only appear in one group, not omn as it is in each species group
     #     #var example var="general_timelim", group_variable for fortran parameters file.
@@ -136,43 +133,98 @@ class GENE_scan_parser():
     #     else:
     #         raise FileNotFoundError(f'Couldnt find {self.base_params_path}')
 
-    def alter_parameters_file(self, parameters_path, group_var, value):
+    def get_parameter_value(self, parameters_path, group_var):
+        print('gpv, paramater path', parameters_path)
         with self.open_file(parameters_path, 'r') as parameters_file:
             nml = f90nml.read(parameters_file)
+        with self.open_file(parameters_path, 'r') as pfile:
+            print('checking if get_p_v alters the parameters file',str(pfile.read()))
         group, var = group_var
-        patch = {group: {var: value}}
-        nml.patch(patch)
-        with self.open_file(parameters_path, 'w') as parameters_file:
-            nml.write(parameters_file)
-
-    def set_simtimelim(self,simtimelim_sec, parameters_path):
-        #convert seconds to GENE units of cref/Lref
-        # cref = sqrt(Tref / mref)
-        #!!Caution assumes Tref is given in the base parameters file and will not work if set to -1 for GENE computation
+        return nml[group][var]
         
-        if simtimelim_sec == None:
-            return None
-        else:
-            with self.open_file(parameters_path, 'r') as parameters_file:
-                nml = f90nml.read(parameters_file)
-                tref = nml['units']['tref']
-                if tref < 0:
-                    #raise ValueError('To set the simulation time limit based on Tref it must be included in the base parameters file. This is needed to compute the units.')
-                    tref = 0.501585859244667 # taken from origional parameters file
-                    print('!!WARNING!!, tref is being computed by gene but we do not know what it is, so using a default value of', tref)
-                mref = nml['units']['mref']
-                cref = np.sqrt(tref/mref)
-                lref = nml['units']['lref']
+    # def alter_parameters_file_old(self, parameters_path, group_var, value):
+    #     print('ALTER PARAMETERS FILE')
+    #     # This will work to alter any parameter that does not have a comment in its line. eg scanned parameters
+    #     new_parameters_file = []
+    #     with self.open_file(parameters_path, 'r') as parameters_file:
+    #         nml = f90nml.read(parameters_file)
+    #         # print('old nml', nml)
+    #         group, var = group_var
+    #         patch = {group: {var: value}}
+    #         nml.patch(patch)
+            
+    #     with self.open_file(parameters_path, 'r') as parameters_file:
+    #         for line_old, line_new in zip(parameters_file, str(nml).splitlines()):
+    #             if '!' in line_old: 
+    #                 new_parameters_file.append(line_old)
+    #             else: 
+    #                 new_parameters_file.append(line_new)
+    #     new_parameters_file.append('/')# I noticed it was missing, not sure why.
+    #     new_parameters_file = '\n'.join(new_parameters_file)
+
+    #     with self.open_file(parameters_path, 'w') as parameters_file:
+    #         parameters_file.write(new_parameters_file)
+    #     # print('new parameters file', new_parameters_file)
+    #     return new_parameters_file        
+
+    
+
+
+    #commented as decided to keep gene units and use alter parameter instead. 
+    # def set_simtimelim(self,simtimelim_sec, parameters_path, alter = True):
+    #     #convert seconds to GENE units of cref/Lref
+    #     # cref = sqrt(Tref / mref)
+    #     #!!Caution assumes Tref is given in the base parameters file and will not work if set to -1 for GENE computation
+        
+    #     if simtimelim_sec == None:
+    #         return None
+    #     else:
+    #         with self.open_file(parameters_path, 'r') as parameters_file:
+    #             nml = f90nml.read(parameters_file)
+    #             tref = nml['units']['tref']
+    #             if tref < 0:
+    #                 #raise ValueError('To set the simulation time limit based on Tref it must be included in the base parameters file. This is needed to compute the units.')
+    #                 tref = 0.501585859244667 # taken from origional parameters file
+    #                 print('!!WARNING!!, tref is being computed by gene but we do not know what it is, so using a default value of', tref)
+    #             mref = nml['units']['mref']
+    #             cref = np.sqrt(tref/mref)
+    #             lref = nml['units']['lref']
                 
-                simtimelim_gene = simtimelim_sec / (lref / cref)
-                print('SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
-                print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
-                self.alter_parameters_file(parameters_path=parameters_path, group_var=["general","simtimelim"], value=simtimelim_gene)
+    #             simtimelim_gene = simtimelim_sec / (lref / cref)
+    #             print('SET_SIMTIMELIM, SIMTIMLIM_GENE:', simtimelim_gene)
+    #             print('TREF', tref, 'MREF', mref, 'CREF',cref, 'LREF', lref)
+    #             if alter: self.alter_parameters_file(parameters_path=parameters_path, group_var=["general","simtimelim"], value=simtimelim_gene)
+    #     return simtimelim_gene
 
     def base_to_remote(self, remote_param_path, remote_sbatch_path):
         print('PLACING BASE PARAMETERS AND SBATCH TO REMOTE PROBLEM DIRECTORY')
         self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
         self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
+
+    def alter_parameters_file(self, parameters_path, group_var, value):
+        # only works for variables that have a unique group and no comments to preserve, ie not scanned parameters
+        group, var = group_var
+        with self.open_file(parameters_path, 'r') as file:
+            lines = file.readlines()
+            for i, line in enumerate(lines):
+                if ' '+var+' ' in line: # spaces ensure filenames are not picked 
+                    print(i,var, value)
+                    print(lines[i])
+                    lines[i] = f'    {var} = {value}\n'
+                    print(lines[i])
+                    break # break at first occurence since there is only one
+        new_parameters = ''.join(lines)
+        with self.open_file(parameters_path, 'w') as file:
+            file.write(new_parameters)
+
+    def rename_important_scanfiles(self, scanfile_dir, prefix, important_files = ['scan.log', 'geneerr.log']):
+        #renaming important files so they don't get overwritten
+        print("RENAMING IMPORTANT FILES SO THEY DON'T GET OVERWRITTEN")
+        important_files_new = [f'{prefix}_{i_f}' for i_f in important_files]
+        important_paths = [os.path.join(scanfile_dir,i_f) for i_f in important_files]
+        important_paths_new = [os.path.join(scanfile_dir, i_f_n) for i_f_n in important_files_new]
+        for i_path, i_path_new in zip(important_paths, important_paths_new):
+            self.config.paramiko_ssh_client.exec_command(f'mv {i_path} {i_path_new}')
 
 
     def write_sbatch(self, sbatch_path, sbatch_continue_path, wallseconds):
@@ -203,7 +255,7 @@ class GENE_scan_parser():
         return sbatch
 
     #puts in the paramaters with the GENE !scan functionality
-    def write_input_file(self, params: dict, parameters_path):
+    def write_input_file(self, params: dict, parameters_path, remote_save_dir):
         
         namelist = self.base_namelist
         namelist_string=str(namelist)
@@ -296,7 +348,7 @@ class GENE_scan_parser():
         # placing in the remote save directory
         lines = namelist_string.split('\n')
         for line, i in zip(lines, np.arange(len(lines))):
-            if 'diagdir' in line: lines[i] = f"    diagdir = '{self.remote_save_dir}'" 
+            if 'diagdir' in line: lines[i] = f"    diagdir = '{remote_save_dir}'" 
         namelist_string = '\n'.join(lines)
 
         #Writing the final namelist stirng to file. This is the scan parameters file.
@@ -307,6 +359,8 @@ class GENE_scan_parser():
             file.write(namelist_string)  
         
         return namelist_string
+
+        
 
     def read_output_file(self, out_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []
@@ -346,25 +400,94 @@ class GENE_scan_parser():
         df = pd.DataFrame(times, columns=['run_time'])
         return df
     
-    def read_scan_status(self, sbatch_err_path=None, gene_status_path=None):
-        # this is mostly for checking to see if a scan needs to be immediatly continued because some of the runs are unfinished
-        scan_status = 'complete or some error'
+    def hit_wallclock_limit_test(self, sbatch_err_path):
+        response = False
         with self.open_file(sbatch_err_path, 'r') as file:
             # Iterate through each line in the file
             for line_number, line in enumerate(file, start=1):
                 if 'DUE TO TIME LIMIT ***' in line:
-                    scan_status = 'needs continuation'
+                    response = True
+        return response
+    
+    def hit_simtimelim_test(self, geneerr_path, get_status=False, fast=False):
+        print('HIT SIM LIMIT TEST ON FILE:', geneerr_path)
+        response = None
+        status = ''
+        if fast:
+            raise NotImplemented
+            # need to perfect the regex for this.
+            with self.open_file(geneerr_path, 'r') as geneerr:
+                geneerr_str = str(geneerr.read())
+                print('type',type(geneerr_str))
+                match = np.array(re.findall("Simulation time limit of.*reached, exiting time loop|Linear growth rate is converged, exiting time loop", geneerr_str))
+                print(match)
+                mask = np.where(match == 'Linear growth rate is converged, exiting time loop', True, False)
+                match[mask] = 'f'
+                match[not mask] = 's'
+                status = ''.join(match)
+        else:        
+            with self.open_file(geneerr_path, 'r') as geneerr:
+                run_count = 0
+                unknown_reason_count = 0
+                reasons = []
+                for i, line in enumerate(geneerr):
+                    if '*** entering time loop ***' in line:
+                        print('line', line)
+                        print('hstlt, len stat and run_count',len(status), run_count)
+                        run_count += 1
+                        if len(status)+1 != run_count:
+                            status += 's'
+                            # No reason given also included unknown reasons beyond the ones in if statements below
+                            unknown_reason_count += 1
+                            
+                    if re.search("Simulation time limit of.*reached, exiting time loop", line) != None:
+                        status += 's'
+                        reasons.append('sim time lim reached')
+                    if re.search("Linear growth rate is converged, exiting time loop",line) != None:
+                        status += 'f'
+                        reasons.append('Growthrate Converged, Instability Found')
+                    elif re.search("Exit due to reaching the underflow limit",line) != None:
+                        status += 'f'
+                        reasons.append('Underflow Limit Reached, Distribution Function too small')
+                print(f'There have been {unknown_reason_count} unknown reasons for run termination found in {geneerr_path}')
+        known_reasons = ['Simulation time limit of.*reached, exiting time loop', 'Linear growth rate is converged, exiting time loop', 'Exit due to reaching the underflow limit']
+        print('known reasons for gene termination:', known_reasons )
+        print('REASONS FOR GENE STOPPING DETECTED',np.unique(np.array(reasons)))
+
+        if get_status:
+            response = status
+        elif 's' in status:
+            response = True
+        else:
+            response = False
+        return response
+    
+    def check_status(self,status_path):
+        with self.open_file(status_path, 'r') as status_file:
+            status = status_file.read().decode('utf8')
+            return status
+    
+    def set_status(self, status_path, status):
+        with self.open_file(status_path, 'w') as status_file:
+            status_file.write(status)
+    # def read_scan_status(self, sbatch_err_path=None, gene_status_path=None):
+    #     # this is mostly for checking to see if a scan needs to be immediatly continued because some of the runs are unfinished
+    #     scan_status = 'complete or some error'
+    #     if self.hit_wallclock_limit_test(sbatch_err_path):
+    #         scan_status = 'needs continuation'
                 
-        return scan_status
+    #     return scan_status
     
     def open_file(self, file_path, mode='r'):
         if self.config.local_username in file_path:
             try: 
                 file = open(file_path, mode)
-            except: 
+            except:
+                # print('using paramiko')
                 file = self.config.paramiko_sftp_client.open(file_path, mode)
         else:
-            try: 
+            try:
+                # print('using paramiko 2')
                 file = self.config.paramiko_sftp_client.open(file_path, mode)
             except:
                 file = open(file_path, mode)
@@ -379,9 +502,9 @@ if __name__ == '__main__':
     # 'box-kymin':generator.uniform(0.05,1,5)
     params = {'species-omn':omn,
           '_grp_species_1-omt':generator.uniform(10,70,5)}
-    parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_path = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'), remote_save_dir='/project/project_462000451/gene_out/gene_auto')
+    parser = GENE_scan_parser(save_dir= os.getcwd(),base_params_path = os.path.join('/home/djdaniel/GENE_UQ/','parameters_base_uq'))
     # parser.alter_base(group_var="general_timelim",value=44000)
-    # parser.write_input_file(params,file_name='parameters_scanwith')
+    # parser.write_input_file(params,file_name='parameters_scanwith',  remote_save_dir='/project/project_462000451/gene_out/gene_auto')
     # parser.read_run_time('scanlogs/5000s_7p/geneerr_batch-0_0.log')
     # parser.set_simtimelim(10e-2)
     parser.open_file('.gitignore')
