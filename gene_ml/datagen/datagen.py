@@ -9,16 +9,16 @@ class DataGen():
     def __init__(self, config, sampler, remote_save_name, num_workers, ex_id, single_run_timelim=None, single_run_simtimelim=None, previous_set=None, time_model=None):
         self.remote_save_name = remote_save_name
         self.remote_save_dir = os.path.join(config.remote_save_base_dir,remote_save_name)
-        self.parser = GENE_scan_parser(config, self.remote_save_dir)
+        self.parser = GENE_scan_parser(config)
         self.single_run_timelim = single_run_timelim
         self.ex_id = ex_id
         #switching between using a time_model or guessing the walltime for a sample
         if type(previous_set) != type(None):
             previous_set.train_time_model(time_model)
-            self.runner = GENErunner(self.parser, config, single_run_timelim=single_run_timelim, single_run_simtimelim=single_run_simtimelim, time_model=previous_set.time_model)
+            self.runner = GENErunner(self.parser, config, self.remote_save_dir, single_run_timelim=single_run_timelim, single_run_simtimelim=single_run_simtimelim, time_model=previous_set.time_model)
         
         else:
-            self.runner = GENErunner(self.parser, config, single_run_timelim=single_run_timelim, single_run_simtimelim=single_run_simtimelim)
+            self.runner = GENErunner(self.parser, config, self.remote_save_dir, single_run_timelim=single_run_timelim, single_run_simtimelim=single_run_simtimelim)
         
         self.sampler = sampler
 
