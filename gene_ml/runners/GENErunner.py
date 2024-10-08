@@ -3,86 +3,25 @@ import sys
 import subprocess
 import numpy as np
 from collections.abc import Iterator
-from config import config
-
+import re
+from ..tools import sec_to_time_format
+import time
 class GENErunner():
-    def __init__(self, parser, host, sbatch_base_path, remote_run_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None, local_run_files_dir=os.path.join(os.getcwd(),'run_files')):
+    def __init__(self, parser, config, remote_save_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None):
         self.parser=parser
-        self.host = host
-        self.sbatch_base_path = sbatch_base_path
+        self.host = config.host
         self.single_run_timelim = single_run_timelim
         self.single_run_simtimelim = single_run_simtimelim
-        self.remote_run_dir = remote_run_dir
+        self.remote_run_dir = config.remote_run_dir
         self.ssh_path = f"{self.host}:{self.remote_run_dir}"
         self.time_model = time_model
-        self.local_run_files_dir = local_run_files_dir
+        self.local_run_files_dir = config.local_run_files_dir
         self.max_wallseconds = 0
+        self.config = config
 
-    def sec_to_time_format(self, sec):
-            m, s = divmod(sec, 60)
-            h, m = divmod(m, 60, )
-            d, h = divmod(h, 24)
-            s,m,h,d = str(int(s)), str(int(m)), str(int(h)), str(int(d))
-            if len(d)==1: d = '0'+d
-            if len(h)==1: h = '0'+h
-            if len(m)==1: m = '0'+m
-            if len(d)==1: s = '0'+s
-            return f"{d}-{h}:{m}:{s}"
+        self.remote_save_dir = remote_save_dir
 
-    def generate_sbatch(self, wallseconds , run_id):
-
-        sbatch = open(self.sbatch_base_path, "r").read()
-        # parameters_scan = open(parameters_path, "r").read()
-
-        # first_scanwith_loc = parameters_scan.find('!scanwith:')
-        # n_samples = len(parameters_scan[first_scanwith_loc:parameters_scan.find('\n', first_scanwith_loc)].split(','))-1
-        wall_clock_limit = self.sec_to_time_format(wallseconds)
-        print(f'WALL CLOCK LIMIT FOR BATCH {run_id}:  ', wall_clock_limit)
-        sbatch_lines = sbatch.split('\n')
-        wall_loc = 0
-        for i in range(len(sbatch_lines)):
-            if '#SBATCH -t' in sbatch_lines[i]: 
-                wall_loc = i
-                break
-        sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  # wallremote_run_dir = '/project/project_462000451/gene/'clock limit, dd-hh:mm:ss"
-
-        sbatch = "\n".join(sbatch_lines)
-        if not os.path.exists('temp/'): os.mkdir('temp/')
-        with open(f'temp/sbatch_{run_id}', "w") as sbatch_file:
-            sbatch_file.write(sbatch)
-
-        for i, line in enumerate(sbatch_lines):
-            if "./scanscript" in line:
-                sbatch_lines[i] = line.replace("./scanscript", "./scanscript --continue_scan")
-
-        continue_str = "\n".join(sbatch_lines)
-        with open(f'temp/continue_{run_id}', "w") as continue_file:
-            continue_file.write(continue_str)
-        
-    def alter_remote_parameter(self, group_var, value, run_ids):
-        print('ALTERING REMOTE PARAMETER FOR RUN IDs:', run_ids)
-        for rid in run_ids:
-            from GENE_ML.gene_ml.parsers.GENEparser import GENE_scan_parser
-            remote_base_file = config.paramiko_sftp_client.open(os.path.join(self.remote_run_dir, 'auto_prob_'+rid), 'rw')
-            parser = GENE_scan_parser(config.save_dir, remote_base_file)
-            parser.alter_base(group_var=group_var, value=value)
-            remote_base_file.close()
-
-    def continue_run(self, run_id, purpose='not_all_finished'):
-        # if 
-        print('CONTINUING RUNS -', run_id)
-        if type (run_id) is list:
-            sbatch_ids = []
-            for rid in run_id:
-                command = f"ssh {self.host} 'cd {os.path.join(self.remote_run_dir, 'auto_prob_'+rid)}; sbatch continue.cmd; exit'"
-                sbatch_id = subprocess.check_output(command, shell=True, text=True)
-                sbatch_id = sbatch_id.strip().split(' ')[-1]
-                sbatch_ids.append(sbatch_id)
-            return sbatch_ids
-        else:
-            raise TypeError("run_id must be a list, for only one run_id please place into a list.")
-
-    def print_check_parameters(self, samples, run_id):
+    def get_wallseconds(self, samples):
         #using time model or guess sample walltime to get the walltime
         if type(self.time_model)!=type(None):
             times, errors = self.time_model.predict(samples)
@@ -91,66 +30,66 @@ class GENErunner():
             n_samples = len(list(samples.values())[0])
             print('\n\nSINGLE RUN TIMELIM',self.single_run_timelim, 'N SAMPLES', n_samples)
             wallseconds = self.single_run_timelim * n_samples * 1.1 #add 10% more to ensure it works
+        return wallseconds
+
+    def pre_run_check(self, samples, run_id):
+        print('PRE RUN CHECK')
+        n_samples = len(list(samples.values())[0])
+        wallseconds = self.get_wallseconds(samples)
         if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
-        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
-
-        print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
-        self.parser.alter_base(group_var="general_timelim", value=self.single_run_timelim * n_samples)
+        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
         
-        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
-        # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
-        self.parser.set_simtimelim(self.single_run_simtimelim)
-
-        print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{run_id}')
-        print(self.parser.write_input_file(samples, file_name=f'parameters_{run_id}'))
-
-
-    def code_run(self, samples, run_id):
-        print('\nCODE RUN')
-        # make results directory
-        error_code = os.system(f"ssh {self.host} 'mkdir -p {self.parser.remote_save_dir}'")
-        if error_code != 0: 
-            raise SystemError('When making the results directory with ssh there was an error')
-
-        if not os.path.exists('temp/'):
-            os.mkdir('temp/')
-
-        #using time model or guess sample walltime to get the walltime
-        if type(self.time_model)!=type(None):
-            times, errors = self.time_model.predict(samples)
-            wallseconds = np.sum(times) * 1.3
-        else:
-            n_samples = len(list(samples.values())[0])
-            print('\n\nSINGLE RUN TIMELIM',self.single_run_timelim, 'N SAMPLES', n_samples)
-            wallseconds = self.single_run_timelim * n_samples * 1.1 #add 10% more to ensure it works
-        if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
-        print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {self.sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
-
-        print(f"ALTERING THE BASE PARAMETERS FILE TO SET THE TIMELIM AND SIMTIMELIM TO THE WALLTIME")
-        self.parser.alter_base(group_var="general_timelim", value=self.single_run_timelim * n_samples)
-        
-        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
-        # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
-        self.parser.set_simtimelim(self.single_run_simtimelim)
-
-        print(f'PARSING SAMPLES TO INPUT FILE at temp/parameters_{run_id}')
-        self.parser.write_input_file(samples, file_name=f'parameters_{run_id}')
-        print(f'GENERATING SBATCH FROM PARAMETERS FILE at temp/sbatch_{run_id}')
-        
-        self.generate_sbatch(wallseconds,run_id=run_id)
-        print('CREATING A NEW PROBLEM DIR WITH SSH')
+        remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
         remote_param_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'parameters')
         remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
         remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
-        print('MOVING PARAMETERS AND SBATCH FILES TO CORRECT LOCATION IN REMOTE; SUBMITTING GENE SBATCH')
-        os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit' ; scp temp/parameters_{run_id} {self.host}:{remote_param_path} && scp temp/sbatch_{run_id} {self.host}:{remote_sbatch_path} && scp temp/continue_{run_id} {self.host}:{remote_continue_path}")
+    
+        try:
+            print(f"CHECKING IF PROBLEM DIRECTORY EXISTS?")
+            directory_details = self.config.paramiko_sftp_client.stat(remote_problem_dir)
+        except FileNotFoundError:
+            print('REMOTE PROBLEM DIRECTORY DOES NOT EXIST, CREATING IT NOW:', remote_problem_dir)
+            command = f'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit'
+            _, stdout, _ = self.config.paramiko_ssh_client.exec_command(command)
+            print('RESULT FROM COMMAND:',stdout.read())
 
-        print(f'CREATING auto_prob_{run_id} in {self.remote_run_dir}') 
-        command = f"ssh {self.host} 'cd {self.remote_run_dir}/auto_prob_{run_id}; sbatch submit.cmd; exit'"
-        sbatch_id = subprocess.check_output(command, shell=True, text=True)
-        sbatch_id = sbatch_id.strip().split(' ')[-1]
+        self.parser.base_to_remote(remote_param_path, remote_sbatch_path)
+
+        print(f"ALTERING THE PARAMETERS FILE IN THE REMOTE PROBLEM DIRECTORY")
+        self.parser.alter_parameters_file(remote_param_path, group_var=["general","timelim"], value=self.single_run_timelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
         
-        print('SUBMITTED SBATCH ID',sbatch_id)
+        print('\n\nCODE RUN: SETTING SIMULATION TIME LIMMIT\n\n')
+        # simtimelim is the timelimit inside the simulation, so number of seconds of plasma evolution. The simulation should be fater than walltime so I set it to the same time to ensure no limitations here.
+        # self.parser.set_simtimelim(self.single_run_simtimelim, parameters_path=remote_param_path)
+        self.parser.alter_parameters_file(remote_param_path, group_var=["general","simtimelim"], value=self.single_run_simtimelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
+        
+        print('SBATCH')
+        print(self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds))
+
+        print(f'PARSING SAMPLES TO INPUT FILE at:',remote_param_path)
+        print(self.parser.write_input_file(samples, remote_param_path, remote_save_dir=os.path.join(self.remote_save_dir, run_id)))
+
+    def code_run(self, samples, run_id):
+        self.pre_run_check(samples, run_id)
+
+        print('\nCODE RUN')
+        # make results directory
+        remote_save_dir_run_id = os.path.join(self.remote_save_dir, run_id)
+        print('MAKING PARSER REMOTE SAVE DIRECTORY,', remote_save_dir_run_id)
+        command = f'mkdir -p {remote_save_dir_run_id}'
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
+        print('RESULT OF MAKING REMOTE SAVE DIRECTORY,', stdout.read(), stderr.read())
+
+        remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
+
+        run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
+        out = str(stdout.read())
+        err = str(stderr.read())
+
+        sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
+        print('OUT:', out, 'ERROR?:', err)
+        print('SUBMITTED SBATCH ID:', sbatch_id)
         return sbatch_id
     
     def kill_runs(self, sbatch_ids):
@@ -161,57 +100,96 @@ class GENErunner():
         print('SLURM QUEUE AFTER KILL',queue)
         print('\n')
 
+    def check_complete(self, run_ids):
+        statuses = self.check_gene_status(run_ids)
+        complete = []
+        for status in statuses:
+            if 's' in status:
+                complete.append(False)
+            else:
+                complete.append(True)
+        return(np.array(complete))
+    
+    def check_gene_status(self, run_ids):
+        latest = self.get_latest_scanfiles_path(run_ids)
+        status_paths = [os.path.join(l,'in_par','gene_status') for l in latest]
+        status = []
+        for status_path in status_paths:
+            with self.parser.open_file(status_path, 'r') as status_file:
+                status.append(str(status_file.read()))
+        print('CHECK GENE STATUS:',status)
+        return status
+    
     # Checks to see if the slurm batch jobs are still in the queue. 
     def check_finished(self, sbatch_ids):
         print('\nCHECKING IF JOBS FINISHED:', sbatch_ids)
         #To check that certain sbatch_id's are no longer in the squeue
-        command = f"ssh {self.host} 'squeue --me'"
-        queue = subprocess.check_output(command, shell=True, text=True)
-        lines = queue.split('\n')
-        recieved_ids = [l.strip().split(' ')[0] for l in lines[0:]]
-        still_running_ids = set(recieved_ids) & set(sbatch_ids)
-        if len(still_running_ids)>0:
-            print('RUNNING SBATCH IDs: ', still_running_ids)
-            finished = False
-        else:
+        command = f"squeue --me"
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
+        out = stdout.read().decode('utf8')
+        finished = np.array([not s_id in out for s_id in sbatch_ids])
+        if all(finished):
             print('NONE OF THE INPUTED SBATCH IDs ARE RUNNING')
-            finished  = True
+        else:
+            print('FINISHED', finished)
+            print('RUNNING SBATCH IDs: ', np.array(sbatch_ids)[~finished])
         print('\n')
-        return finished
+        return all(finished)
     
-    def retrieve_run_file(self, file_name, run_id):
-        print("GETTING RUN FILE: ", file_name)
-        command = f"scp '{os.path.join(self.ssh_path, 'auto_prob_'+run_id, file_name)}' {os.path.join(self.local_run_files_dir, file_name)}"
-        command = f"scp '{os.path.join(self.ssh_path, 'auto_prob_'+run_id, file_name)}' {os.path.join(self.local_run_files_dir, file_name)}"
-        
-        os.system(command)
+    def wait_till_finished(self, sbatch_ids, check_interval=5):
+        start = time.time()
+        while not self.check_finished(sbatch_ids):
+            time.sleep(check_interval)
+            now = time.time()
+            print(f'TIME SINCE STARTED  : {sec_to_time_format(now-start)}')
+            print(f'MAX WALL TIME       :',sec_to_time_format(self.max_wallseconds))
 
     
+    # def retrieve_run_file(self, file_name, run_id):
+    #     print("GETTING RUN FILE: ", file_name)
+    #     command = f"scp '{os.path.join(self.ssh_path, 'auto_prob_'+run_id, file_name)}' {os.path.join(self.local_run_files_dir, file_name)}"
+    #     command = f"scp '{os.path.join(self.ssh_path, 'auto_prob_'+run_id, file_name)}' {os.path.join(self.local_run_files_dir, file_name)}"
+        
+    #     os.system(command)
+    
     # Checks to see if the GENE run needs to be continued
-    def check_complete(self, run_ids):
-        incomplete = []
-        for run_id in run_ids:
-            #Trying to use new paramiko method for this.
+    # def check_complete(self, run_ids):
+    #     print('RUNNER CHECK COMPLETE')
+    #     incomplete = []
+    #     status = []
+    #     for run_id in run_ids:
+    #         scanfiles_dir = self.config.paramiko_sftp_client.listdir(os.path.join(self.parser.remote_save_dir,run_id))
+    #         print('SCANFILES_DIR', scanfiles_dir)
+    #         scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
+    #         print('SCANFILES_NUMBER', scanfiles_number)
+    #         latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
+    #         geneerr_log_path = os.path.join(self.parser.remote_save_dir,run_id,latest_scanfile,'geneerr.log')
+    #         status.append(self.parser.hit_simtimelim_test(geneerr_log_path), get_status=True)
+    #     incomplete = ['s' in s for s in status] #'s' stands for started. 'f' for finished, status is a string of s and f char one for each point in a run_id
+    #     return incomplete, status
+    #         #Trying to use new paramiko method for this.
             # out_path = os.path.join(self.parser.remote_save_dir, run_id)
             # command = f'ls {out_path}'
-            # stdin, stdout, stderr = config.paramiko_ssh_client.exec_command(command)
+            # stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
             # lines = stdout.readlines()
             # print('stdout',lines)
             # scan_numbers = [out[-4:] for out in lines]
             # print('SCAN NUMBERS',scan_numbers)
             # geneerr_log_path = os.path.join(self.parser.remote_save_dir, run_id)
 
-            regex_command = "ls | grep -E '[0-9]{7}.err$'"
-            command = f"ssh {self.host} 'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} &&  {regex_command}; exit'"
-            files = subprocess.check_output(command, shell=True, text=True)
-            files = files.strip().split('\n')
-            ran_sbatch_ids = [f.strip().split('.')[-2] for f in files]
-            latest = files[np.argmax(ran_sbatch_ids)]
-            self.retrieve_run_file(latest, run_id)
-            scan_status = self.parser.read_scan_status(os.path.join(self.local_run_files_dir, latest))
-            if scan_status == 'needs continuation':
-                incomplete.append(run_id)
-        return incomplete
+            # regex_command = "ls | grep -E '[0-9]{7}.err$'"
+            # command = f"ssh {self.host} 'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} &&  {regex_command}; exit'"
+            # files = subprocess.check_output(command, shell=True, text=True)
+            # files = files.strip().split('\n')
+            # ran_sbatch_ids = [f.strip().split('.')[-2] for f in files]
+            # latest = files[np.argmax(ran_sbatch_ids)]
+            # self.retrieve_run_file(latest, run_id)
+            # scan_status = self.parser.read_scan_status(os.path.join(self.local_run_files_dir, latest))
+            # if scan_status == 'needs continuation':
+            #     incomplete.append(run_id)
+        # return incomplete
+
+        
     
     def delete(self, run_ids):
         for run_id in run_ids:
@@ -224,17 +202,194 @@ class GENErunner():
     def delete_remote_dir(self, remote_dir):
         print('DELETING,', remote_dir)
         os.system(f"ssh {self.host} 'rm -r {remote_dir}; exit'")
-
-        
-    def update_gene_status(self):
-        gene_status_path = os.path.join(self.parser.remote_save_dir(),'scanfiles0000','in_pars','gene_status')
         
 
     def continue_with_increased_omega_prec():
         None
 
+    def continue_run(self, run_id):
+        # if 
+        print('CONTINUING RUN -', run_id)
+        continue_command = f'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} &&sbatch continue.cmd; exit'
+        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(continue_command)
+        out = stdout.read().decode('utf8')
+        err = stderr.read().decode('utf8')
+        print('OUT:',out, 'ERR:',err)
+        batch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
+        print('SUBMITTED SBATCH ID:', batch_id)
+        return batch_id    
+
+    def continue_with_new_param(self, run_ids, group_var, value, perform_status_check=True):
+        print(f'CONTINUING RUN {run_ids}\n with new {group_var}:{value}')
+        #perform checks to see if we should increase to new_simtimelim
+        if perform_status_check:
+            print('PERFORMING STATUS CHECK')
+            # Did all runs finish previously
+            complete = self.check_complete(run_ids)
+            restarts = 0
+            if not all(complete):
+                for i in range(restarts):
+                    complete = self.check_complete(run_ids)
+                    print('debug',complete, ~complete, np.array(run_ids)[~complete])
+                    sbatch_ids = []
+                    for run_id in np.array(run_ids)[~complete]:
+                        sbatch_ids.append(self.continue_run(run_id))
+                    self.wait_till_finished(sbatch_ids)
+                if not all(complete):
+                    raise RuntimeError(f"Daniel Says: These scans: \n{np.array(run_ids)[~complete]}\n didn't get to complete all the runs, even after {restarts}. This could be because the sbatch wall clock limit was reached or another error. Continue the scan untill they are all complete before tring to continue with a new parameter.")
+        remote_prob_parameters = [os.path.join(self.remote_run_dir,'auto_prob_'+run_id, 'parameters') for run_id in run_ids]
+        
+        latest = self.get_latest_scanfiles_path(run_ids)
+        remote_in_pars_dir = [os.path.join(l,'in_par') for l in latest]
+        status_paths = [os.path.join(l,'in_par','gene_status') for l in latest]
+        batch_ids = []
+
+        for run_id, latest_i, rem_prob_param, remote_in_pars_dir, status_path in zip(run_ids, latest, remote_prob_parameters, remote_in_pars_dir, status_paths):
+            
+            # print('ALTERING THE PROB DIR PARAMETERS FILE:', rem_prob_param)
+            # # put the new param value in the remote parameters file
+            # self.parser.alter_parameters_file(rem_prob_param, group_var=group_var, value=value)
+            # print('ALTERING THE in_par DIR PARAMETERS FILES')
+            # # put the new param value in all remote parameters files in the inpar directory
+            # for in_par_parameters in self.config.paramiko_sftp_client.listdir(remote_in_pars_dir):
+            #     if 'parameters' in in_par_parameters:
+            #         self.parser.alter_parameters_file(os.path.join(remote_in_pars_dir, in_par_parameters), group_var, value)
+            # print('ALTERING THE OUT DIR PARAMETERS FILE')
+            # self.parser.alter_parameters_file(os.path.join(latest_i, 'parameters'),group_var = group_var, value=value)
+
+            self.alter_all_parameters_files(run_id, group_var, value, latest_i)
+
+            print('ALTERING THE STATUS FILE TO CONTAIN ONLY s')
+            # change the status file to a string of sssss so that all runs are started with new parameter value       
+            with self.parser.open_file(status_path, 'r') as status_file:
+                status = status_file.read().decode('utf8')
+                print('STATUS FOUND', status)
+            status = status.replace('f','s')
+            with self.parser.open_file(status_path, 'w') as status_file:
+                status_file.write(status)
+            #double checking it is correctly altered
+            with self.parser.open_file(status_path, 'r') as status_file:
+                status = status_file.read().decode('utf8')
+                print('NEW STATUS IN FILE', status)
+            
+            print('RUNNING continue.cmd IN THE PROBLEM DIRECTORY')
+            batch_ids.append(self.continue_run(run_id))
+        return batch_ids
+    
+    def alter_all_parameters_files(self, run_id, group_var, value, scanfile_dir):
+        rem_prob_param = os.path.join(self.remote_run_dir,'auto_prob_'+run_id, 'parameters')
+        remote_in_pars_dir = os.path.join(scanfile_dir,'in_par')
+        print('ALTERING THE PROB DIR PARAMETERS FILE:', rem_prob_param)
+        # put the new param value in the remote parameters file
+        self.parser.alter_parameters_file(rem_prob_param, group_var=group_var, value=value)
+        print('ALTERING THE in_par DIR PARAMETERS FILES')
+        # put the new param value in all remote parameters files in the inpar directory
+        for in_par_parameters in self.config.paramiko_sftp_client.listdir(remote_in_pars_dir):
+            if 'parameters' in in_par_parameters:
+                self.parser.alter_parameters_file(os.path.join(remote_in_pars_dir, in_par_parameters), group_var, value)
+        print('ALTERING THE OUT DIR PARAMETERS FILE')
+        self.parser.alter_parameters_file(os.path.join(scanfile_dir, 'parameters'),group_var = group_var, value=value)
+
+    def continue_with_new_simtimelim(self, run_ids, value, stl_id):
+        # STILL TO BE TESTED
+        #the main difference between this and continue_with_new_param is that geneerr.log will be checked to see which runs have not converged and so need to be continued. 
+        latest = self.get_latest_scanfiles_path(run_ids)
+        latest_geneerr_path = []
+        for latest_i in latest:
+            files = self.config.paramiko_ssh_client.listdir(latest_i)
+            max_stl_id = 0
+            max_id_index = None
+            for i, file in enumerate(files):
+                if 'stl_id_' in file and 'geneerr.log' in file:
+                    stl_id = re.search('id_(.*)_id', file).group(0)
+                    if stl_id > max_stl_id: 
+                        max_stl_id = stl_id
+                        max_id_index = i
+            latest_geneerr_path.append(os.path.join(latest_i, files[max_id_index]))
+        
+        print('PERFORMING CHECK_COMPLETE TO ENSURE ALL PREVIOUS RUNS FINISHED')
+        complete = self.check_complete(run_ids=run_ids)
+        if not all(complete):
+            raise RuntimeError('Daniel Says: Something did not complete according to the gene_status file. This usually happends if the sbatch wall clock limit is too low, or a GENE error occured, please investigate.')
+        
+        print('LOOKING AT GENEERR.LOG TO DETERMIN A NEW STATUS SO THAT RUNS THAT HAVE NOT CONVERGED ARE CONTINUED')
+        new_statuses = []
+        for geneerr_path in latest_geneerr_path:
+            status = self.parser.hit_simtimelim_test(geneerr_path, get_status=True)
+            new_statuses.append(status)
+        
+        print('PLACING THE NEW STATUSES INTO THEIR PATHS')
+        status_paths = [os.path.join(l,'in_par','gene_status') for l in latest]
+        for status_path, new_status in zip(status_paths, new_statuses):
+            self.parser.set_status(status_path, new_status)
+        
+        print('CHANGING THE NAME OF ANY IMPORTANT FILES SO THEY ARE NOT APPENDED OR OVERWRITTEN')
+        for latest_i in latest:
+            self.parser.rename_important_scanfiles(latest_i, prefix='old')
+
+        print('ALTERING ALL PARAMETERS FILES')
+        for run_id, latest_i in zip(run_ids, latest):
+            self.alter_all_parameters_files(run_id, group_var=['general','simtimelim'], value=value, scanfile_dir=latest_i)
+        
+        print('CONTINUING WITH SBATCH CONTINUE.CMD IN THE PROBLEM DIRECTORIES')
+        batch_ids = []
+        for run_id in run_ids:
+            batch_ids.append(self.continue_run(run_id))
+        
+        print('WAITING FOR CONTINUED RUNS TO FINISH SO THE FILES CAN BE RENAMED')
+        self.wait_till_finished(batch_ids, check_interval=10)
+
+        print('CHANGING THE NAME OF THE MADE FILES SO THEY CAN BE IDENTIFIED LATER')
+        for latest_i in latest:
+            self.parser.rename_important_scanfiles(latest_i, prefix=f'stl_{value}_id_{stl_id}_id')
+        
+        print('FINISHED CONTINUE WITH NEW SIMTIMELIM:', value)
         
 
+        
+        
+
+
+    # def continue_with_increased_simtimelim(self, run_ids, new_simtimelim):
+    #     print('RUNNER, continue with increased simtimelim\n')
+    #     remote_parameters_paths = [os.path.join(self.remote_run_dir,'auto_prob_'+run_id,'parameters') for run_id in run_ids]
+
+    #     latest = self.get_latest_scanfiles_path(run_ids)
+    #     geneerr_paths = [os.path.join(l,'geneerr.log') for l in latest]
+    #     status_paths = [os.path.join(l,'in_par','gene_status') for l in latest]
+    #     batch_ids = []
+    #     for run_id, rem_param_path, gerr_path, status_path in zip(run_ids, remote_parameters_paths, geneerr_paths, status_paths):
+    #         #perform checks to see if we should increase to new_simtimelim
+    #         print('PERFORMING CHECKS TO SEE IF SIMTIMELIM SHOULD BE INCREASED')
+    #         status = self.parser.hit_simtimelim_test(gerr_path, get_status=True)
+    #         if not 's' in status:
+    #             print(f"NO GENE RUNS HIT THE SIM TIME LIMIT SO NOT INCREASING AND NOT CONTINUING THE RUN,{run_id}")
+
+    #         old_simtimelim = self.parser.get_parameter_value(rem_param_path, group_var=['general','simtimelim'])
+    #         print('old simtime lim', old_simtimelim)
+    #         if old_simtimelim >= new_simtimelim:
+    #             print('simtime lime old', old_simtimelim, 'new',new_simtimelim)
+    #             raise ValueError('Daniel Says: You tried to increase the simtimelim but the value entered is the same or smaller than what was already there. Please try again with a larger number.')
+            
+    #         print(f'CONTINUING RUN {run_id} with new simtimelim:{new_simtimelim}')
+    #         # put the new sim time limit in the remote parameters file
+    #         self.parser.alter_parameters_file(rem_param_path, group_var=['general','simtimelim'], value=new_simtimelim)
+    #         # alter the status file so the continue scan will know what to run and what to leave finished.
+    #         with self.parser.open_file(status_path, 'w') as status_file:
+    #             status_file.write(status)
+            
+    #         batch_ids.append(self.continue_run(run_id))
+    #     return batch_ids
+            
+    def get_latest_scanfiles_path(self, run_ids):
+        latest = []
+        for run_id in run_ids:
+            remote_save = os.path.join(self.remote_save_dir, run_id)
+            scanfiles_dir = self.config.paramiko_sftp_client.listdir(remote_save)
+            scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
+            latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
+            latest.append(os.path.join(remote_save,latest_scanfile))
+        return latest
 
     def clean(self):
         '''
@@ -260,7 +415,7 @@ if __name__ == '__main__':
     base_params_path = os.path.join('/home/djdaniel/DEEPlasma/','parameters_base_dp')
     remote_save_dir='/scratch/project_462000451/gene_out/gene_auto/test'
     parser = GENE_scan_parser(base_params_path, remote_save_dir)
-    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', sbatch_base_path = '/home/djdaniel/DEEPlasma/sbatch_base_dp', single_run_timelim=81)
+    runner = GENErunner(parser, remote_run_dir='/project/project_462000451/gene_auto/', host='lumi', base_sbatch_path = '/home/djdaniel/DEEPlasma/sbatch_base_dp', single_run_timelim=81)
     runner.check_complete()
     # runner.clean()
     # runner.code_run(sampler.samples, run_id='test')
