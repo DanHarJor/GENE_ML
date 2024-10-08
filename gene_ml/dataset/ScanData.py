@@ -4,6 +4,7 @@ import subprocess
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+import re
 try:
     from .base import DataSet
 except:
@@ -13,13 +14,15 @@ except:
         raise ImportError 
 
 class ScanData(DataSet):
-    def __init__(self, name, parser, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47, parameters_map=None):
+    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
         The remote path needs needs to point to either a diectory that contains the scanfile* folders from a GENE scan or a specific scan.log file.
         '''
         print('Initialising dataset')
+        self.config = config
+        self.scan_files_target = scan_files_target
         self.name = name
         self.parser = parser
         self.host=host
@@ -45,7 +48,7 @@ class ScanData(DataSet):
             print('MAKING SCANLOG DIR') 
             os.mkdir(self.scan_log_path)
             print('RETRIEVING REMOTE SCANLOG FILES')
-            self.retrieve_remote_logs()
+            self.retrieve_remote_logs(scanfiles_target=self.scan_files_target)
 
         self.df_inc_nan = None
         if os.path.isfile(self.scan_log_path):
@@ -127,15 +130,18 @@ class ScanData(DataSet):
         
         
 
-    def retrieve_remote_logs(self):
+    def retrieve_remote_logs(self, scanfiles_target = 'all'):
+        #scanfiles target can be 'all' or 'latest'
         print('\nRETRIEVING SCANLOG/S VIA scp FROM REMOTE')
         print(f'SCANLOG PATH: {self.ssh_path}')
         # subprocess.run(['scp','-r',ssh_path, self.scan_log_path])
         # print('\n\nDEBUG\n\n',self.scan_log_path, type(self.scan_log_path), str(self.scan_log_path))
         if 'scan.log' in self.ssh_path: #Then we are only taking one file
+            print('RETRIVING SPECIFIED SINGLE LOGFILE')
             print('RETRIVING REMOTE FILE')
             os.system(f'scp -r {self.ssh_path} {self.scan_log_path}')
-        else: # we should have a directory and need to take all scan logs
+        elif scanfiles_target=='all': # we should have a directory and need to take all scan logs
+            print('GETTING ALL SCANLOGS')
             print('RETRIVING FROM REMOTE DIR')
             i = 0
             results = []
@@ -156,7 +162,25 @@ class ScanData(DataSet):
                 if results[-6:] == [256,256,256,256,256,256]:
                     break 
             print('THE ABOVE ERROR IS EXPECTED')
-        
+        elif scanfiles_target =='latest':
+            print('GETTING LATEST SCANLOG')
+            #Using new paramiko library
+            run_ids = self.config.paramiko_sftp_client.listdir(self.remote_path)
+            print('RUN_IDs',run_ids)
+            for i, r_id in enumerate(run_ids):
+                scanfiles_dir = self.config.paramiko_sftp_client.listdir(os.path.join(self.remote_path,r_id))
+                print('SCANFILES_DIR', scanfiles_dir)
+                scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
+                print('SCANFILES_NUMBER', scanfiles_number)
+                latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
+                print('LATEST_SCANFILE', latest_scanfile)
+                latest_scanlog_path = os.path.join(self.remote_path,r_id,latest_scanfile,'scan.log')
+                latest_generr_path = os.path.join(self.remote_path,r_id,latest_scanfile,'geneerr.log')
+                self.config.paramiko_sftp_client.get(latest_scanlog_path, os.path.join(self.scan_log_path,f'scan_batch-{i}_scanfiles-0.log'))
+                self.config.paramiko_sftp_client.get(latest_generr_path, os.path.join(self.scan_log_path,f'geneerr_batch-{i}_scanfiles-0.log'))
+
+
+
         print(f'SCANLOG/S RETRIEVED AND SAVED TO:{self.scan_log_path}')
         
 

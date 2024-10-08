@@ -4,6 +4,7 @@ from sklearn import svm
 class SVM(Model):
     def __init__(self):
         self.regressor = svm.SVR()
+        print('SVM KERNEL:', self.regressor.kernel)
     def train(self, x, y):
         self.regressor.fit(x, y)
 
