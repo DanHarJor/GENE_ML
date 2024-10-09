@@ -109,7 +109,7 @@ class GENE_scan_parser():
             Nothing 
         """
         self.config = config
-        self.save_dir = config.save_dir
+        # self.save_dir = config.save_dir
         self.base_params_path = config.base_params_path
         self.base_namelist = f90nml.read(self.base_params_path)
         self.base_sbatch_path = config.base_sbatch_path
@@ -256,8 +256,9 @@ class GENE_scan_parser():
 
     #puts in the paramaters with the GENE !scan functionality
     def write_input_file(self, params: dict, parameters_path, remote_save_dir):
-        
-        namelist = self.base_namelist
+        with self.open_file(parameters_path) as parameters_file:
+            namelist = f90nml.read(parameters_file)
+        # namelist = self.base_namelist
         namelist_string=str(namelist)
         
         #populate params: dict with all omn's required. Since each should be identical
