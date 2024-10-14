@@ -7,6 +7,7 @@ from typing import List
 from copy import deepcopy
 import pandas as pd
 import re
+import time
 from ..tools import sec_to_time_format 
 
 import sys
@@ -225,6 +226,7 @@ class GENE_scan_parser():
         important_paths_new = [os.path.join(scanfile_dir, i_f_n) for i_f_n in important_files_new]
         for i_path, i_path_new in zip(important_paths, important_paths_new):
             self.config.paramiko_ssh_client.exec_command(f'mv {i_path} {i_path_new}')
+        time.sleep(5) # To ensure the mv command has finished before moving on. Not doing this caused some timing issues with file reading things that had not been moved yet.
 
 
     def write_sbatch(self, sbatch_path, sbatch_continue_path, wallseconds):
@@ -237,7 +239,7 @@ class GENE_scan_parser():
                 if '#SBATCH -t' in sbatch_lines[i]: 
                     wall_loc = i
                     break
-            sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  ## wallclock limit, dd-hh:mm:ss"
+            sbatch_lines[wall_loc] = f"#SBATCH -t {wall_clock_limit}  ## wallclock limit, dd-hh:mm:ss\n"
 
             sbatch = "".join(sbatch_lines)
 
@@ -436,11 +438,7 @@ class GENE_scan_parser():
                         print('line', line)
                         print('hstlt, len stat and run_count',len(status), run_count)
                         run_count += 1
-                        if len(status)+1 != run_count:
-                            status += 's'
-                            # No reason given also included unknown reasons beyond the ones in if statements below
-                            unknown_reason_count += 1
-                            
+                        
                     if re.search("Simulation time limit of.*reached, exiting time loop", line) != None:
                         status += 's'
                         reasons.append('sim time lim reached')
@@ -450,6 +448,12 @@ class GENE_scan_parser():
                     elif re.search("Exit due to reaching the underflow limit",line) != None:
                         status += 'f'
                         reasons.append('Underflow Limit Reached, Distribution Function too small')
+                if len(status) != run_count:
+                    dif = run_count-len(status)
+                    status += 's'*dif
+                    # No reason given also included unknown reasons beyond the ones in if statements below
+                    unknown_reason_count = dif
+                        
                 print(f'There have been {unknown_reason_count} unknown reasons for run termination found in {geneerr_path}')
         known_reasons = ['Simulation time limit of.*reached, exiting time loop', 'Linear growth rate is converged, exiting time loop', 'Exit due to reaching the underflow limit']
         print('known reasons for gene termination:', known_reasons )
