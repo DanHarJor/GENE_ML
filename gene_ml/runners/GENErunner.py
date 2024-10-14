@@ -84,9 +84,10 @@ class GENErunner():
 
         run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
         stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
-        out = str(stdout.read())
-        err = str(stderr.read())
-
+        out = stdout.read().decode('utf8')
+        err = stderr.read().decode('utf8')
+        print('OUT:', out, 'ERROR?:', err)
+        
         sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
         print('OUT:', out, 'ERROR?:', err)
         print('SUBMITTED SBATCH ID:', sbatch_id)
@@ -290,23 +291,29 @@ class GENErunner():
         print('ALTERING THE OUT DIR PARAMETERS FILE')
         self.parser.alter_parameters_file(os.path.join(scanfile_dir, 'parameters'),group_var = group_var, value=value)
 
-    def continue_with_new_simtimelim(self, run_ids, value, stl_id):
+
+    def continue_non_converged_runs(self, run_ids, new_simtimelim=None):
         # STILL TO BE TESTED
         #the main difference between this and continue_with_new_param is that geneerr.log will be checked to see which runs have not converged and so need to be continued. 
         latest = self.get_latest_scanfiles_path(run_ids)
         latest_geneerr_path = []
+        max_stl_ids = []
         for latest_i in latest:
-            files = self.config.paramiko_ssh_client.listdir(latest_i)
+            files = self.config.paramiko_sftp_client.listdir(latest_i)
             max_stl_id = 0
             max_id_index = None
             for i, file in enumerate(files):
                 if 'stl_id_' in file and 'geneerr.log' in file:
-                    stl_id = re.search('id_(.*)_id', file).group(0)
+                    stl_id = int(re.search('id_(.*)_id', file).group(1))
                     if stl_id > max_stl_id: 
                         max_stl_id = stl_id
                         max_id_index = i
+                elif 'geneerr.log' in file and type(max_id_index)==type(None):
+                    max_id_index = i
+            max_stl_ids.append(max_stl_id)
+                
             latest_geneerr_path.append(os.path.join(latest_i, files[max_id_index]))
-        
+        new_stl_ids = [int(stl_id) + 1 for stl_id in max_stl_ids]
         print('PERFORMING CHECK_COMPLETE TO ENSURE ALL PREVIOUS RUNS FINISHED')
         complete = self.check_complete(run_ids=run_ids)
         if not all(complete):
@@ -327,9 +334,10 @@ class GENErunner():
         for latest_i in latest:
             self.parser.rename_important_scanfiles(latest_i, prefix='old')
 
-        print('ALTERING ALL PARAMETERS FILES')
-        for run_id, latest_i in zip(run_ids, latest):
-            self.alter_all_parameters_files(run_id, group_var=['general','simtimelim'], value=value, scanfile_dir=latest_i)
+        if type(new_simtimelim) != type(None):
+            print('ALTERING ALL PARAMETERS FILES')
+            for run_id, latest_i in zip(run_ids, latest):
+                self.alter_all_parameters_files(run_id, group_var=['general','simtimelim'], value=new_simtimelim, scanfile_dir=latest_i)
         
         print('CONTINUING WITH SBATCH CONTINUE.CMD IN THE PROBLEM DIRECTORIES')
         batch_ids = []
@@ -340,10 +348,13 @@ class GENErunner():
         self.wait_till_finished(batch_ids, check_interval=10)
 
         print('CHANGING THE NAME OF THE MADE FILES SO THEY CAN BE IDENTIFIED LATER')
-        for latest_i in latest:
-            self.parser.rename_important_scanfiles(latest_i, prefix=f'stl_{value}_id_{stl_id}_id')
-        
-        print('FINISHED CONTINUE WITH NEW SIMTIMELIM:', value)
+        for latest_i, stl_id in zip(latest, new_stl_ids):
+            if type(new_simtimelim) != type(None):            
+                self.parser.rename_important_scanfiles(latest_i, prefix=f'stl_{new_simtimelim}_id_{stl_id}_id')
+                print(f'FINISHED CONTINUE NUMBER {stl_id}, IN SCANFILES {latest_i} WITH NEW SIMTIMELIM:', new_simtimelim)
+            else:
+                self.parser.rename_important_scanfiles(latest_i, prefix=f'stl_id_{stl_id}_id')
+                print(f'FINISHED CONTINUE NUMBER {stl_id}, IN SCANFILES {latest_i}')
         
 
         

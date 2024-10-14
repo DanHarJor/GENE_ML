@@ -14,7 +14,7 @@ except:
         raise ImportError 
 
 class ScanData(DataSet):
-    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
+    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -27,6 +27,7 @@ class ScanData(DataSet):
         self.parser = parser
         self.host=host
         self.remote_path = remote_path
+        self.scan_name = scan_name
         self.sampler = sampler
         self.test_percentage=test_percentage
 
@@ -97,7 +98,7 @@ class ScanData(DataSet):
 
     def load_from_file(self, scan_path, geneerr_path):
         print(f'\nLOADING SCANLOG AND TIME INTO PANDAS DATAFRAME {scan_path} : {geneerr_path}')
-        scan_df = self.parser.read_output_file(scan_path)
+        scan_df = self.parser.read_scanlog(scan_path)
         if type(geneerr_path) == type(None):
             time_df = pd.DataFrame(np.repeat(np.nan, len(scan_df)), columns=['run_time'])
         else:
@@ -286,6 +287,143 @@ class ScanData(DataSet):
         self.df = joint_df
         self.set_from_df()
         return self
+
+
+class ScanData2(DataSet):
+    # paramiko update
+    # update to include info about termination reason
+    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None):
+        '''
+        To retrieve data from the server remote path and host should be defined
+        When the string ssh <host> is entered in to he command line a ssh terminal should be started.
+        The remote path needs needs to point to either a diectory that contains the scanfile* folders from a GENE scan or a specific scan.log file.
+        '''
+        print('Initialising dataset')
+        self.config = config
+        self.name = name
+        self.parser = parser
+        self.remote_path = remote_path
+        self.scan_name = scan_name
+        self.sampler = sampler
+        self.test_percentage=test_percentage
+
+        self.random_state=random_state
+        self.parameters_map = parameters_map
+        
+        #for quasineutrality omn1 is the same as omn2 so we can remove one
+        if any(np.array(self.df.columns.values.tolist()) == 'omn2'):
+            self.df = self.df.drop(columns=['omn2'])
+        if type(self.sampler) != type(None):        
+            self.set_from_df()
+            self.match_sampler(self.sampler)
+        print('SETTING VARIABLES')
+        self.set_from_df()
+    
+    def set_from_df(self, df):
+        self.df = df
+        self.df_no_nan = self.remove_nans(self.df)
+        self.head = list(self.df_no_nan.columns)
+        self.x = self.df_no_nan.drop(columns=['growthrate','frequency','run_time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.growthrates = self.df_no_nan['growthrate'].to_numpy(dtype=float)
+        self.frequencies = self.df_no_nan['frequency'].to_numpy(dtype=float)
+        self.run_time = self.df_no_nan['run_time'].to_numpy(dtype=float)
+        if self.test_percentage == 0:
+            print('TEST PERCENTAGE IS 0, NO SPLIT')
+            self.x_train = self.x
+            self.x_test = None
+            self.growthrate_train = self.growthrates
+            self.growthrate_test = None
+            self.frequencies_train = self.frequencies
+            self.frequencies_test = None
+        else:
+            self.split()
+
+    def split(self):    
+        print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
+        self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
+
+    def load_from_file(self, scan_path, geneerr_path):
+        df = self.parser.read_output(scan_path, geneerr_path)
+        return df
+                
+    def remove_nans(self, df):
+        ## caution, can only work for df created from single file.
+        #removing NAN's
+        nan_mask = ~np.isnan(df['growthrate'].to_numpy(dtype=float))
+        if len(np.argwhere(nan_mask))>0: 
+            n_before_tlimit = int(np.argwhere(nan_mask)[-1])+1 
+        else: 
+            n_before_tlimit = 0
+        n_requested = len(df)
+        df = df[0:n_before_tlimit]
+        nan_mask = nan_mask[0:n_before_tlimit]
+        n_samp = len(df)
+        df = df.loc[nan_mask]
+        n_samp_nonan = len(df)
+        return df, n_samp, n_requested, n_samp_nonan
+    
+    def match_sampler(self, sampler):
+        print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
+        # Check that the data and sampler have the same order________
+        sample_order_bool = []
+        print('x', self.x[0], 's', sampler.samples_array[0])
+        print('l',len(self.x))
+        for i in range(len(self.x)):
+            sampler.samples_array[i]
+            self.growthrate_train[i]
+            #print(self.x[i], sampler.samples_array[i], f'gr {self.growthrate_train[i]}')
+            #The GENE scanlogs don't have the parameters in the same order as the sampler
+            #So we just check if they have the same numbers regardless of the order with sort
+            # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
+            # This is why the unique is there, to remove the duplicated omn. 
+            #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
+            order_bool = np.sort(np.unique(np.round(self.x[i],3))) == np.sort(np.unique(np.round(sampler.samples_array[i],3)))
+            sample_order_bool.append(order_bool)
+        sample_order_bool = np.concatenate(sample_order_bool)
+        all_corect_order = all(sample_order_bool)
+        print("RESULT: ", all_corect_order, "\n")
+        #_____________________________________________________________
+            
+        if not all_corect_order:
+            print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
+            raise KeyError
+        else:
+            print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
+            # Now the order is correct we can safely make them the same. 
+            new_df = sampler.df.copy()
+            new_df['growthrate'] = self.df['growthrate'].to_numpy()
+            new_df['frequency'] = self.df['frequency'].to_numpy()
+            new_df.insert(0, 'run_time', self.df['run_time'].to_numpy())
+            self.df = new_df
+            self.set_from_df()
+            print("COMPLETE \n")
+
+
+    def match_parameters_order(self, parameters):
+        ordered_head = [] 
+        for param in parameters:
+            ordered_head.append(self.parameters_map[param])
+        self.df = self.df.loc[:,['run_time',*ordered_head,'growthrate','frequency']]
+        
+    def remove_parameter(self, parameter_name):
+        self.df = self.df.drop(columns=[parameter_name])
+        self.set_from_df()
+
+    def train_time_model(self, model):
+        self.time_model = model
+        self.time_model.train(self.x, self.run_time)
+
+    def concat(self, datasets):
+        dfs = [self.df]
+        for ds in datasets:
+            dfs.append(ds.df)
+        joint_df = pd.concat(dfs)
+        self.df = joint_df
+        self.set_from_df()
+        return self
+
+
+
 
 class SSG_ScanData(ScanData):
     def __init__(self, *args, **kargs):
