@@ -6,7 +6,8 @@ import time
 from ..tools import sec_to_time_format
 
 class ScanExecutor():
-    def __init__(self, num_workers, sampler, runner, ex_id, **kwargs):
+    def __init__(self, config, num_workers, sampler, runner, ex_id, **kwargs):
+        self.config = config
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
         self.runner = runner
@@ -69,18 +70,38 @@ class ScanExecutor():
         for sbatch_id in self.sbatch_ids:
             os.system(f'rm run_files/auto_gene.{sbatch_id}.out')
 
-    def increment_sim_time_lim(self, simtimelims):
+    
+    def local_backup(self):
+        for run_id in self.run_ids:
+            self.config.scp.get(local_path = self.config.local_backup_dir, remote_path = os.path.join(self.config.remote_run_dir,'auto_prob_'+run_id), recursive=True)
+        self.config.scp.get(local_path = self.config.local_backup_dir, remote_path=self.remote_save_dir, recursive=True)
+
+    def continue_non_converged_runs(self, new_simtimelims):
+        # n is the number of times to continue
         # This is only to be ran when there is a set of gene problem directories already created by the start_runs function.
-        # Check to see there is nothing running that was started by this executor
         self.wait_till_finished()
         if not all(self.check_complete()):
             raise TimeoutError('Daniel Says: gene_status shows incomplete individual gene runs. This is likely because the wallclock limit was hit. Check how this is calculated')
-        for simtimelim in simtimelims:
-            print('STARTING NEXT SIMTIMELIM:',simtimelim, 'out of',simtimelims)
-            self.sbatch_ids += self.runner.continue_with_increased_simtimelim(self.run_ids,simtimelim)
-            self.wait_till_finished()
+
+        for i, simtimelim in enumerate(new_simtimelims):
+            print('CONTINUING NON CONVERGED RUNS',i)
+            self.runner.continue_non_converged_runs(self.run_ids, new_simtimelim=simtimelim)
+        print(f'NON CONVERGED RUNS HAVE BEEN CONTINUED {i} TIMES')
+        print(f'NEW SIMTIMELIM FOR RECENT CONTINUE IS {simtimelim}')
+
+
+    # def increment_sim_time_lim(self, simtimelims):
+    #     # This is only to be ran when there is a set of gene problem directories already created by the start_runs function.
+    #     # Check to see there is nothing running that was started by this executor
+    #     self.wait_till_finished()
+    #     if not all(self.check_complete()):
+    #         raise TimeoutError('Daniel Says: gene_status shows incomplete individual gene runs. This is likely because the wallclock limit was hit. Check how this is calculated')
+    #     for simtimelim in simtimelims:
+    #         print('STARTING NEXT SIMTIMELIM:',simtimelim, 'out of',simtimelims)
+    #         self.sbatch_ids += self.runner.continue_with_increased_simtimelim(self.run_ids,simtimelim)
+    #         self.wait_till_finished()
         
-        print('FINISHED INCRIMENTING SIM TIME LIM')
+    #     print('FINISHED INCRIMENTING SIM TIME LIM')
 
     def continue_increment(self, group_var, values):
         self.wait_till_finished()
@@ -90,6 +111,8 @@ class ScanExecutor():
             latest_scanfiles = self.runner.get_latest_scanfiles_path(self.run_ids)
             for latest_sf in latest_scanfiles:
                 self.runner.parser.rename_important_scanfiles(latest_sf, prefix='-'.join(group_var)+'_value')
+    
+
     
 if __name__ == '__main__':
     import os

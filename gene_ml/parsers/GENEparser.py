@@ -24,7 +24,7 @@ import sys
 #     write_input_file
 #         Writes the inputfile for a single set of parameters.
 
-#     read_output_file
+#     read_scanlog
 #         Reads the output file to python format
 
 #     """
@@ -91,7 +91,7 @@ import sys
 #         f90nml.write(namelist, self.input_fpath)
 
 #     # what is returned here is returned to the runner for a single code run, which goes though the base executor to get to the future 
-#     def read_output_file(self, save_dir: str):
+#     def read_scanlog(self, save_dir: str):
 #         raise NotImplementedError
     
 class GENE_scan_parser(): 
@@ -363,12 +363,19 @@ class GENE_scan_parser():
         
         return namelist_string
 
-        
+    def read_output(self, scanlog_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log', geneerr_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/geneerr.log'):
+        scanlog_df = self.read_scanlog(scanlog_path)
+        time_df = self.read_run_time(geneerr_path)
+        reasons = self.hit_simtimelim_test(geneerr_path, get_reasons=True)
+        reasons_df = pd.DataFrame(reasons, columns='termination_reason')
+        result = pd.concat([scanlog_df, time_df, reasons_df], axis=1)
+        return result
 
-    def read_output_file(self, out_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
+    def read_scanlog(self, scanlog_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []
         frequency = []
-        head = open(out_path, 'r').readline()
+        with self.open_file(scanlog_path, 'r') as scanlog_file:
+            head = scanlog_file.readline()
         # head.replace('\n','')
         head = head.split('|')
         last_two = head[-1].split('/')
@@ -376,7 +383,9 @@ class GENE_scan_parser():
         head = head + last_two
         head = [h.replace(' ','') for h in head]
 
-        df = pd.read_csv(out_path, sep='|',skiprows=1, names=head)
+        with self.open_file(scanlog_path, 'r') as scanlog_file:
+            df = pd.read_csv(scanlog_file, sep='|',skiprows=1, names=head)
+    
         for i in range(len(df)):
             split = df[head[-1]][i].lstrip().rstrip().split(' ')      
             growthrate.append(split[0])
@@ -390,7 +399,7 @@ class GENE_scan_parser():
     def read_run_time(self, geneerr_path):
         # Open the file in read mode
         times = []
-        with open(geneerr_path, 'r') as file:
+        with self.open_file(geneerr_path, 'r') as file:
             # Iterate through each line in the file
             for line_number, line in enumerate(file, start=1):
                 # Check if the desired string is in the current line
@@ -412,7 +421,7 @@ class GENE_scan_parser():
                     response = True
         return response
     
-    def hit_simtimelim_test(self, geneerr_path, get_status=False, fast=False):
+    def hit_simtimelim_test(self, geneerr_path, get_status=False, get_reasons=False, fast=False):
         print('HIT SIM LIMIT TEST ON FILE:', geneerr_path)
         response = None
         status = ''
@@ -441,13 +450,20 @@ class GENE_scan_parser():
                         
                     if re.search("Simulation time limit of.*reached, exiting time loop", line) != None:
                         status += 's'
-                        reasons.append('sim time lim reached')
-                    if re.search("Linear growth rate is converged, exiting time loop",line) != None:
+                        reasons.append('simtimelim')
+
+                    elif re.search("Linear growth rate is converged, exiting time loop",line) != None:
                         status += 'f'
-                        reasons.append('Growthrate Converged, Instability Found')
+                        reasons.append('growthrate_converged')
+
                     elif re.search("Exit due to reaching the underflow limit",line) != None:
                         status += 'f'
-                        reasons.append('Underflow Limit Reached, Distribution Function too small')
+                        reasons.append('underflow')
+
+                    elif re.search('Exit due to overflow error', line) != None:
+                        status += 'f'
+                        reasons.append('overflow')
+
                 if len(status) != run_count:
                     dif = run_count-len(status)
                     status += 's'*dif
@@ -461,6 +477,8 @@ class GENE_scan_parser():
 
         if get_status:
             response = status
+        elif get_reasons:
+            response = reasons
         elif 's' in status:
             response = True
         else:
