@@ -14,7 +14,7 @@ except:
         raise ImportError 
 
 class ScanData(DataSet):
-    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
+    def __init__(self, name, parser, config, sampler=None, host=None, remote_save_dir=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -26,7 +26,7 @@ class ScanData(DataSet):
         self.name = name
         self.parser = parser
         self.host=host
-        self.remote_path = remote_path
+        self.remote_save_dir = remote_save_dir
         self.scan_name = scan_name
         self.sampler = sampler
         self.test_percentage=test_percentage
@@ -34,7 +34,7 @@ class ScanData(DataSet):
         self.random_state=random_state
         self.parameters_map = parameters_map
 
-        self.ssh_path = f"{self.host}:{self.remote_path}"
+        self.ssh_path = f"{self.host}:{self.remote_save_dir}"
         print('SSH PATH', self.ssh_path)
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
     
@@ -166,17 +166,17 @@ class ScanData(DataSet):
         elif scanfiles_target =='latest':
             print('GETTING LATEST SCANLOG')
             #Using new paramiko library
-            run_ids = self.config.paramiko_sftp_client.listdir(self.remote_path)
+            run_ids = self.config.paramiko_sftp_client.listdir(self.remote_save_dir)
             print('RUN_IDs',run_ids)
             for i, r_id in enumerate(run_ids):
-                scanfiles_dir = self.config.paramiko_sftp_client.listdir(os.path.join(self.remote_path,r_id))
+                scanfiles_dir = self.config.paramiko_sftp_client.listdir(os.path.join(self.remote_save_dir,r_id))
                 print('SCANFILES_DIR', scanfiles_dir)
                 scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
                 print('SCANFILES_NUMBER', scanfiles_number)
                 latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
                 print('LATEST_SCANFILE', latest_scanfile)
-                latest_scanlog_path = os.path.join(self.remote_path,r_id,latest_scanfile,'scan.log')
-                latest_generr_path = os.path.join(self.remote_path,r_id,latest_scanfile,'geneerr.log')
+                latest_scanlog_path = os.path.join(self.remote_save_dir,r_id,latest_scanfile,'scan.log')
+                latest_generr_path = os.path.join(self.remote_save_dir,r_id,latest_scanfile,'geneerr.log')
                 self.config.paramiko_sftp_client.get(latest_scanlog_path, os.path.join(self.scan_log_path,f'scan_batch-{i}_scanfiles-0.log'))
                 self.config.paramiko_sftp_client.get(latest_generr_path, os.path.join(self.scan_log_path,f'geneerr_batch-{i}_scanfiles-0.log'))
 
@@ -292,7 +292,7 @@ class ScanData(DataSet):
 class ScanData2(DataSet):
     # paramiko update
     # update to include info about termination reason
-    def __init__(self, name, parser, config, sampler=None, host=None, remote_path=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None):
+    def __init__(self, name, parser, config, sampler=None, remote_save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -302,50 +302,89 @@ class ScanData2(DataSet):
         self.config = config
         self.name = name
         self.parser = parser
-        self.remote_path = remote_path
+        self.remote_save_dir = remote_save_dir
         self.scan_name = scan_name
         self.sampler = sampler
-        self.test_percentage=test_percentage
+        self.split_ratio = split_ratio
 
         self.random_state=random_state
         self.parameters_map = parameters_map
         
+        self.scanlog_df, self.rest_df = self.load_from_remote_save_dir()
+
         #for quasineutrality omn1 is the same as omn2 so we can remove one
-        if any(np.array(self.df.columns.values.tolist()) == 'omn2'):
-            self.df = self.df.drop(columns=['omn2'])
-        if type(self.sampler) != type(None):        
-            self.set_from_df()
-            self.match_sampler(self.sampler)
+        if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
+            self.scanlog_df = self.scanlog_df.drop(columns=['omn2'])
+        if any(np.array(self.rest_df.columns.values.tolist()) == 'omn2'):
+            self.rest_df = self.rest_df.drop(columns=['omn2'])
+
         print('SETTING VARIABLES')
         self.set_from_df()
-    
-    def set_from_df(self, df):
-        self.df = df
-        self.df_no_nan = self.remove_nans(self.df)
-        self.head = list(self.df_no_nan.columns)
-        self.x = self.df_no_nan.drop(columns=['growthrate','frequency','run_time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
-        self.growthrates = self.df_no_nan['growthrate'].to_numpy(dtype=float)
-        self.frequencies = self.df_no_nan['frequency'].to_numpy(dtype=float)
-        self.run_time = self.df_no_nan['run_time'].to_numpy(dtype=float)
-        if self.test_percentage == 0:
-            print('TEST PERCENTAGE IS 0, NO SPLIT')
-            self.x_train = self.x
-            self.x_test = None
-            self.growthrate_train = self.growthrates
-            self.growthrate_test = None
-            self.frequencies_train = self.frequencies
-            self.frequencies_test = None
-        else:
-            self.split()
 
-    def split(self):    
-        print(f'\nRANDOMLY SPLITTING DATA INTO TEST AND TRAINING SETS: {self.test_percentage}% test, {100-self.test_percentage} training.')
-        self.x_train, self.x_test, self.growthrate_train, self.growthrate_test, self.frequencies_train, self.frequencies_test = train_test_split(self.x, self.growthrates, self.frequencies, test_size=self.test_percentage/100, random_state=self.random_state)
+        self.df = pd.concat([self.scanlog_df, self.rest_df],axis=1)
+        print('End of SCAN DATA init')
+
+        # if type(self.sampler) != type(None):            
+        #     self.match_sampler(self.sampler)
+        
+    def set_from_df(self):
+        nan_mask = ~np.isnan(self.scanlog_df['growthrate'].to_numpy(dtype=float))
+        self.scanlog_df_no_nan = self.scanlog_df.loc[nan_mask]
+        self.rest_df_no_nan = self.rest_df.loc[nan_mask]
+        self.head = list(self.scanlog_df_no_nan.columns)
+        self.x = self.scanlog_df_no_nan.drop(columns=['growthrate','frequency']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.growthrates = self.scanlog_df_no_nan['growthrate'].to_numpy(dtype=float)
+        self.frequencies = self.scanlog_df_no_nan['frequency'].to_numpy(dtype=float)
+        self.run_time = self.rest_df_no_nan['run_time'].to_numpy(dtype=float)
+
+        # Define the categories and their corresponding probabilities
+        categories = ['train', 'val', 'test']
+        # Generate a random sample of 10 categories based on the specified distribution
+        random_categories = np.random.choice(categories, size=len(self.scanlog_df_no_nan), p=self.split_ratio)
+        self.rest_df_no_nan['data_categorie'] = random_categories
+        self.x_train = self.x[random_categories=='train']
+        self.growthrate_train = self.growthrates[random_categories=='train']
+        self.frequencies_train = self.frequencies[random_categories=='train']
+        self.run_time_train = self.frequencies[random_categories=='train']
+
+        self.x_val = self.x[random_categories=='val']
+        self.growthrate_val = self.growthrates[random_categories=='val']
+        self.frequencies_val = self.frequencies[random_categories=='val']
+        self.run_time_val = self.frequencies[random_categories=='val']
+
+        self.x_test = self.x[random_categories=='test']
+        self.growthrate_test = self.growthrates[random_categories=='test']
+        self.frequencies_test = self.frequencies[random_categories=='test']
+        self.run_time_test = self.frequencies[random_categories=='test']
 
     def load_from_file(self, scan_path, geneerr_path):
-        df = self.parser.read_output(scan_path, geneerr_path)
-        return df
-                
+        scanlog_df, rest_df = self.parser.read_output(scan_path, geneerr_path)
+        return scanlog_df, rest_df
+    
+    def load_from_remote_save_dir(self):
+        batches = self.config.paramiko_sftp_client.listdir(self.remote_save_dir)
+        batch_dirs = [os.path.join(self.remote_save_dir, batch) for batch in batches]
+        latest_scanfile_dirs = []
+        for batch_dir in batch_dirs:
+            scanfiles_dir = self.config.paramiko_sftp_client.listdir(batch_dir)
+            scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
+            latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
+            latest_scanfile_dirs.append(os.path.join(batch_dir,latest_scanfile))
+
+        scanlog_dfs = []
+        rest_dfs = []
+        for scanfile_dir in latest_scanfile_dirs:
+            scanlog_path = os.path.join(scanfile_dir,f'{self.scan_name}scan.log')
+            generr_path = os.path.join(scanfile_dir,f'{self.scan_name}geneerr.log')
+            scanlog_df, rest_df = self.load_from_file(scanlog_path, generr_path)
+            scanlog_dfs.append(scanlog_df)
+            rest_dfs.append(rest_df)
+        
+        scanlog_df = pd.concat(scanlog_dfs, axis=0)
+        rest_df = pd.concat(rest_dfs, axis=0)
+        return scanlog_df, rest_df
+        
+
     def remove_nans(self, df):
         ## caution, can only work for df created from single file.
         #removing NAN's
@@ -363,40 +402,41 @@ class ScanData2(DataSet):
         return df, n_samp, n_requested, n_samp_nonan
     
     def match_sampler(self, sampler):
-        print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
-        # Check that the data and sampler have the same order________
-        sample_order_bool = []
-        print('x', self.x[0], 's', sampler.samples_array[0])
-        print('l',len(self.x))
-        for i in range(len(self.x)):
-            sampler.samples_array[i]
-            self.growthrate_train[i]
-            #print(self.x[i], sampler.samples_array[i], f'gr {self.growthrate_train[i]}')
-            #The GENE scanlogs don't have the parameters in the same order as the sampler
-            #So we just check if they have the same numbers regardless of the order with sort
-            # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
-            # This is why the unique is there, to remove the duplicated omn. 
-            #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
-            order_bool = np.sort(np.unique(np.round(self.x[i],3))) == np.sort(np.unique(np.round(sampler.samples_array[i],3)))
-            sample_order_bool.append(order_bool)
-        sample_order_bool = np.concatenate(sample_order_bool)
-        all_corect_order = all(sample_order_bool)
-        print("RESULT: ", all_corect_order, "\n")
-        #_____________________________________________________________
+        raise NotImplemented
+        # print("\nCHECKING THAT THE SSG SAMPLER AND DATASET HAVE MATCHING ORDER OF SAMPLES...")
+        # # Check that the data and sampler have the same order________
+        # sample_order_bool = []
+        # print('x', self.x[0], 's', sampler.samples_array[0])
+        # print('l',len(self.x))
+        # for i in range(len(self.x)):
+        #     sampler.samples_array[i]
+        #     self.growthrate_train[i]
+        #     #print(self.x[i], sampler.samples_array[i], f'gr {self.growthrate_train[i]}')
+        #     #The GENE scanlogs don't have the parameters in the same order as the sampler
+        #     #So we just check if they have the same numbers regardless of the order with sort
+        #     # Also the scanlogs have both omn while the sampler just has one since they are the same (to conserve quasineutrality)
+        #     # This is why the unique is there, to remove the duplicated omn. 
+        #     #print('EQUAL??', np.sort(np.unique(np.round(self.x[i],2))), np.sort(np.unique(np.round(sampler.samples_array[i],2))))
+        #     order_bool = np.sort(np.unique(np.round(self.x[i],3))) == np.sort(np.unique(np.round(sampler.samples_array[i],3)))
+        #     sample_order_bool.append(order_bool)
+        # sample_order_bool = np.concatenate(sample_order_bool)
+        # all_corect_order = all(sample_order_bool)
+        # print("RESULT: ", all_corect_order, "\n")
+        # #_____________________________________________________________
             
-        if not all_corect_order:
-            print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
-            raise KeyError
-        else:
-            print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
-            # Now the order is correct we can safely make them the same. 
-            new_df = sampler.df.copy()
-            new_df['growthrate'] = self.df['growthrate'].to_numpy()
-            new_df['frequency'] = self.df['frequency'].to_numpy()
-            new_df.insert(0, 'run_time', self.df['run_time'].to_numpy())
-            self.df = new_df
-            self.set_from_df()
-            print("COMPLETE \n")
+        # if not all_corect_order:
+        #     print('The ssg_sampler.samples_array and the ssg_dataset.x have samples that are not in the same order. Thus ssg_poly cannot work.')
+        #     raise KeyError
+        # else:
+        #     print("\n MATCHING THE DATASET SAMPLES TO THE SAMPLERS SAMPLES. THIS IS BECAUSE THEY CAN HAVE DIFFERENT COLUMN CONVENTIONS.")
+        #     # Now the order is correct we can safely make them the same. 
+        #     new_df = sampler.df.copy()
+        #     new_df['growthrate'] = self.df['growthrate'].to_numpy()
+        #     new_df['frequency'] = self.df['frequency'].to_numpy()
+        #     new_df.insert(0, 'run_time', self.df['run_time'].to_numpy())
+        #     self.df = new_df
+        #     self.set_from_df()
+        #     print("COMPLETE \n")
 
 
     def match_parameters_order(self, parameters):
@@ -470,11 +510,11 @@ if __name__ == '__main__':
     parser = GENE_scan_parser(save_dir, base_params_path, remote_save_dir)
 
     # ssh_path = None
-#    remote_path = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
-    remote_path = "/scratch/project_462000451/gene_out/gene_auto/nan100"
+#    remote_save_dir = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
+    remote_save_dir = "/scratch/project_462000451/gene_out/gene_auto/nan100"
     host = 'lumi'
     #data_set = ScanData('100_3p', parser, ssh_path=ssh_path)
-    data_set = ScanData('testwithnan', parser, host, remote_path=remote_path)
+    data_set = ScanData('testwithnan', parser, host, remote_save_dir=remote_save_dir)
     
 
     print('HEAD',data_set.head)
