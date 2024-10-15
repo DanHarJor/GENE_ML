@@ -366,10 +366,12 @@ class GENE_scan_parser():
     def read_output(self, scanlog_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log', geneerr_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/geneerr.log'):
         scanlog_df = self.read_scanlog(scanlog_path)
         time_df = self.read_run_time(geneerr_path)
+        print('DEBUG, PATHS', scanlog_path, geneerr_path)
         reasons = self.hit_simtimelim_test(geneerr_path, get_reasons=True)
-        reasons_df = pd.DataFrame(reasons, columns='termination_reason')
-        result = pd.concat([scanlog_df, time_df, reasons_df], axis=1)
-        return result
+        reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
+        rest_df = pd.concat([time_df, reasons_df], axis=1)
+        print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
+        return scanlog_df, rest_df
 
     def read_scanlog(self, scanlog_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []
