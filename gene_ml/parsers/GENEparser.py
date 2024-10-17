@@ -137,8 +137,6 @@ class GENE_scan_parser():
         print('gpv, paramater path', parameters_path)
         with self.open_file(parameters_path, 'r') as parameters_file:
             nml = f90nml.read(parameters_file)
-        with self.open_file(parameters_path, 'r') as pfile:
-            print('checking if get_p_v alters the parameters file',str(pfile.read()))
         group, var = group_var
         return nml[group][var]
         
