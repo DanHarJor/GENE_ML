@@ -363,6 +363,7 @@ class ScanData2(DataSet):
     
     def load_from_remote_save_dir(self):
         batches = self.config.paramiko_sftp_client.listdir(self.remote_save_dir)
+        batches = np.sort(np.array(batches))
         batch_dirs = [os.path.join(self.remote_save_dir, batch) for batch in batches]
         latest_scanfile_dirs = []
         for batch_dir in batch_dirs:
