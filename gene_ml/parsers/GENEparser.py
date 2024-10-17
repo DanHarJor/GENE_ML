@@ -370,6 +370,11 @@ class GENE_scan_parser():
         reasons = self.hit_simtimelim_test(geneerr_path, get_reasons=True)
         reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
         rest_df = pd.concat([time_df, reasons_df], axis=1)
+        print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+        if len(scanlog_df) != len(rest_df):
+            print(scanlog_df)
+            print(rest_df)
+            raise ValueError(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
         print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
         return scanlog_df, rest_df
 
