@@ -4,6 +4,7 @@ import subprocess
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+import pickle
 import re
 try:
     from .base import DataSet
@@ -72,7 +73,7 @@ class ScanData(DataSet):
             self.match_sampler(self.sampler)
         print('SETTING VARIABLES')
         self.set_from_df()
-    
+        
     def set_from_df(self):
         self.head = list(self.df.columns)
         self.x = self.df.drop(columns=['growthrate','frequency','run_time']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
@@ -286,6 +287,11 @@ class ScanData(DataSet):
         self.df = joint_df
         self.set_from_df()
         return self
+    
+    def save(self, path):
+        with open(path, 'wb') as pickle_file:
+            pickle.dump(self, pickle_file)
+
 
 class SSG_ScanData(ScanData):
     def __init__(self, *args, **kargs):

@@ -4,4 +4,5 @@ condarc_safe
 
 *ignore*
 Dockerfile
+*venv/
 
