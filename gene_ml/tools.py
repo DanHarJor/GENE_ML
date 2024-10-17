@@ -1,3 +1,4 @@
+import pickle
 def sec_to_time_format(sec):
     m, s = divmod(sec, 60)
     h, m = divmod(m, 60, )
@@ -8,3 +9,11 @@ def sec_to_time_format(sec):
     if len(m)==1: m = '0'+m
     if len(d)==1: s = '0'+s
     return f"{d}-{h}:{m}:{s}"
+
+def save_pkl(path, var):
+    with open(path, 'wb') as pickle_file:
+        pickle.dump(var, pickle_file)
+
+def load_pkl(path):
+    with open(path, 'rb') as pickle_file:
+        return pickle.load(pickle_file)
