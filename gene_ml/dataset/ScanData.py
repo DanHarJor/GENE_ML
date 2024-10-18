@@ -298,7 +298,7 @@ class ScanData(DataSet):
 class ScanData2(DataSet):
     # paramiko update
     # update to include info about termination reason
-    def __init__(self, name, parser, config, sampler=None, remote_save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
+    def __init__(self, config, name=None, parser=None, sampler=None, remote_save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -316,24 +316,33 @@ class ScanData2(DataSet):
         self.random_state=random_state
         self.parameters_map = parameters_map
         
-        self.scanlog_df, self.rest_df = self.load_from_remote_save_dir()
+        if remote_save_dir != None:
+            self.scanlog_df, self.rest_df = self.load_from_remote_save_dir()
 
-        #for quasineutrality omn1 is the same as omn2 so we can remove one
-        if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
-            self.scanlog_df = self.scanlog_df.drop(columns=['omn2'])
-        if any(np.array(self.rest_df.columns.values.tolist()) == 'omn2'):
-            self.rest_df = self.rest_df.drop(columns=['omn2'])
+            #for quasineutrality omn1 is the same as omn2 so we can remove one
+            if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
+                self.scanlog_df = self.scanlog_df.drop(columns=['omn2'])
+            if any(np.array(self.rest_df.columns.values.tolist()) == 'omn2'):
+                self.rest_df = self.rest_df.drop(columns=['omn2'])
+                self.rest_df_ncol = len(self.rest_df.columns)
 
-        print('SETTING VARIABLES')
-        self.set_from_df()
+            print('SETTING VARIABLES')
+            self.set_from_df()
 
-        self.df = pd.concat([self.scanlog_df, self.rest_df],axis=1)
+        # self.df = pd.concat([self.scanlog_df, self.rest_df],axis=1)
         print('End of SCAN DATA init')
 
         # if type(self.sampler) != type(None):            
         #     self.match_sampler(self.sampler)
         
-    def set_from_df(self):
+    def set_from_df(self, df=None, rest_df_ncol = None):
+        if type(df) != type(None):
+            if rest_df_ncol != None:
+                self.rest_df_ncol = rest_df_ncol 
+            self.rest_df = df.iloc[:, -self.rest_df_ncol:]
+            self.scanlog_df = df.iloc[:, :-self.rest_df_ncol]
+        
+        self.df = pd.concat([self.scanlog_df, self.rest_df],axis=1)
         nan_mask = ~np.isnan(self.scanlog_df['growthrate'].to_numpy(dtype=float))
         self.scanlog_df_no_nan = self.scanlog_df.loc[nan_mask]
         self.rest_df_no_nan = self.rest_df.loc[nan_mask]
