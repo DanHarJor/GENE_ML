@@ -26,7 +26,7 @@ class DataGen():
         #The executor will divide the samples into batches; one for each worker. Each batch will be ran in paralell in seperate sbatch jobs. 
         # The executor should alter a base batch script to account for that less samples will be ran. 
         # num_workers = 2
-        self.executor = ScanExecutor(num_workers, sampler, self.runner, ex_id)
+        self.executor = ScanExecutor(config, num_workers, sampler, self.runner, ex_id)
     
 
 
