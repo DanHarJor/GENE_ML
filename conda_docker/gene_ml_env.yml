@@ -309,5 +309,6 @@ dependencies:
       - paramz==0.9.6
       - pysgpp==3.3.1
       - scipy==1.11.4
+      - scp==0.15.0
       - sparsespace==1.1.0
 prefix: /home/djdaniel/anaconda3/envs/gene_ml

@@ -7,7 +7,7 @@ def sec_to_time_format(sec):
     if len(d)==1: d = '0'+d
     if len(h)==1: h = '0'+h
     if len(m)==1: m = '0'+m
-    if len(d)==1: s = '0'+s
+    if len(s)==1: s = '0'+s
     return f"{d}-{h}:{m}:{s}"
 
 def save_pkl(path, var):
@@ -17,3 +17,4 @@ def save_pkl(path, var):
 def load_pkl(path):
     with open(path, 'rb') as pickle_file:
         return pickle.load(pickle_file)
+    
