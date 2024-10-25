@@ -362,7 +362,9 @@ class GENE_scan_parser():
         return namelist_string
 
     def read_output(self, scanlog_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log', geneerr_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/geneerr.log'):
+        
         scanlog_df = self.read_scanlog(scanlog_path)
+        # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
         time_df = self.read_run_time(geneerr_path)
         print('DEBUG, PATHS', scanlog_path, geneerr_path)
         reasons = self.hit_simtimelim_test(geneerr_path, get_reasons=True)
@@ -375,6 +377,19 @@ class GENE_scan_parser():
             raise ValueError(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
         print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
         return scanlog_df, rest_df
+    
+    def read_fluxes(self, nrg_path, nspecies=2):
+        with self.open_file(nrg_path, 'r') as nrg_file:
+            lines = nrg_file.readlines()[-nspecies:]
+        species = []
+        for l in lines:
+            values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
+            fluxes = values[4:8]
+            fluxes_dict = {'particle_electrostatic':fluxes[0], 'particle_electromagnetic':fluxes[1], 'heat_electrostatic':fluxes[2], 'heat_electromagnetic':fluxes[3]}
+            species.append(fluxes_dict)
+        # The species are in the same order as in the gene_parameters file.
+        return species
+
 
     def read_scanlog(self, scanlog_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []

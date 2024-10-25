@@ -6,7 +6,7 @@ import time
 from ..tools import sec_to_time_format
 
 class ScanExecutor():
-    def __init__(self, config, num_workers, sampler, runner, ex_id, **kwargs):
+    def __init__(self, config, num_workers, sampler, runner, ex_id, remote_save_dir = None, **kwargs):
         self.config = config
         self.num_workers = num_workers  # kwargs.get('num_workers')
         self.sampler = sampler
@@ -16,7 +16,8 @@ class ScanExecutor():
         self.batches = {k:np.array_split(v,self.num_workers) for k,v in self.sampler.samples.items()}
         self.batches = [{k:v[i] for k,v in self.batches.items()} for i in range(self.num_workers)]
         self.run_ids =  [f'ex-{self.ex_id}_batch-{b_id}' for b_id in np.arange(len(self.batches))] #the runid will be the name of the folder in the remote_run_dir
-        
+        self.remote_save_dir = remote_save_dir
+
     def pre_run_check(self):
         print('\nEXECUTOR, PRINT_CHECK_PARAMETERS\n', 100*'-')
         self.runner.pre_run_check(self.batches[0],self.run_ids[0])
