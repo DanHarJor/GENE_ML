@@ -381,6 +381,7 @@ class ScanData2(DataSet):
         fluxes_df = self.parser.read_fluxes(scanfiles_path)
         df = pd.DataFrame()
         for i, parameters_path in enumerate(parameters_paths):
+            print(parameters_path)
             parameters_dict = self.parser.read_parameters_dict(parameters_path)
             nref = parameters_dict['units']['nref']
             Tref = parameters_dict['units']['tref']
