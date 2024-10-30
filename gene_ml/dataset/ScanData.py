@@ -39,12 +39,21 @@ class ScanData(DataSet):
         self.ssh_path = f"{self.host}:{self.remote_save_dir}"
         print('SSH PATH', self.ssh_path)
         self.scan_log_path = os.path.join(os.getcwd(), 'scanlogs', self.name)
+<<<<<<< HEAD
     
         # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
+=======
+        # self.scan_log_dir = os.path.join(os.getcwd(), 'scanlogs')
+
+        if not os.path.exists(self.scan_log_path): 
+            print('MAKING SCANLOG DIR') 
+            os.mkdir(self.scan_log_path)
+>>>>>>> 3e0e323 (I made sure the docker works well by loading a conda env rather than making it every time)
 
         if not os.path.exists(os.path.join(os.getcwd(), 'scanlogs')):
             os.mkdir(os.path.join(os.getcwd(), 'scanlogs'))
 
+<<<<<<< HEAD
         print('SCAN LOG PATH', self.scan_log_path)
 
         if not os.path.exists(self.scan_log_path): 
@@ -54,6 +63,8 @@ class ScanData(DataSet):
             self.retrieve_remote_logs(scanfiles_target=self.scan_files_target)
 
         self.df_inc_nan = None
+=======
+>>>>>>> 3e0e323 (I made sure the docker works well by loading a conda env rather than making it every time)
         if os.path.isfile(self.scan_log_path):
             print('\nLOADING FROM SCANLOG FILE')
             self.df_inc_nan = self.load_from_file(self.scan_log_path)
