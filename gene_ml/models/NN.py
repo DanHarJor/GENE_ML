@@ -6,26 +6,26 @@ from torch.utils.data import TensorDataset, DataLoader
 
 
 class NN(nn.Module, Model):
-    def __init__(self):
+    def __init__(self, n_inputs, n_layers, n_neurons_per_layer):
+        self.n_layers = n_layers
         super(NN, self).__init__()
-        self.linear1 = nn.Linear(8,90)
-        self.relu1 = nn.ReLU()
-        self.linear2 = nn.Linear(90,90)
-        self.relu2 = nn.ReLU()
-        self.linear3 = nn.Linear(90,90)
-        self.relu3 = nn.ReLU()
-        self.linear4 = nn.Linear(90,1)
+        self.linear_first = nn.Linear(n_inputs,n_neurons_per_layer)
+        self.relu_first = nn.ReLU()
 
-        self.training_loss
+        self.hidden = nn.Linear(n_neurons_per_layer,n_neurons_per_layer)
+        self.relu_hidden = nn.ReLU()
+        self.linear_last = nn.Linear(n_neurons_per_layer,1)
+        # self.relu_last = nn.ReLU()
+        self.training_loss = None
     
     def forward(self,x):
-        x = self.linear1(x)
-        x = self.relu1(x)
-        x = self.linear2(x)
-        x = self.relu2(x)
-        x = self.linear3(x)
-        x = self.relu3(x)
-        x = self.linear4(x)
+        x = self.linear_first(x)
+        x = self.relu_first(x)
+        for i in range(self.n_layers):
+            x = self.hidden(x)
+            x = self.relu_hidden(x)
+        x = self.linear_last(x)
+        # x = self.relu_last(x)
         return x
     
     def train(self,dataloader,val_dataloader,n_epochs,train_batch_size):
@@ -78,15 +78,21 @@ class NN(nn.Module, Model):
 
         self.load_state_dict(best_model_weights)
 
-    def fit(self, x, y, batch_percentage=10, n_epochs=10000):
+    def fit(self, x, y, x_val, y_val, batch_percentage=10, n_epochs=10000):
         # assumed it is already normalised
         x = torch.Tensor(x)
         y = torch.Tensor(y)
+        x_val = torch.Tensor(x_val)
+        y_val = torch.Tensor(y_val)
         batch_size = int(len(x)*(batch_percentage/100))
+        batch_size_val = int(len(x_val)*(batch_percentage/100))
         data_loader = DataLoader(dataset=TensorDataset(x,y), batch_size=batch_size)
-        self.train(data_loader, n_epochs, batch_size)
+        val_data_loader = DataLoader(dataset=TensorDataset(x_val,y_val), batch_size=batch_size_val)
+        self.train(data_loader, val_data_loader, n_epochs, train_batch_size=batch_size)
 
     def predict(self,x):
-        return self(x)
+        x = torch.Tensor(x)
+        pred = self(x).detach().numpy()
+        return pred
 
         
