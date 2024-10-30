@@ -201,12 +201,21 @@ class GENE_scan_parser():
         self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
 
     def alter_parameters_file(self, parameters_path, group_var, value):
-        # only works for variables that have a unique group and no comments to preserve, ie not scanned parameters
+        # assumes no two different groups have the same name for their parameters
         group, var = group_var
+        group_ord = re.findall('[0-9]', group)
+        if len(group_ord) > 1:
+            raise ValueError('Daniel Says, group names should only containc max one digit that specifies the ordinal of the species. If there are more than 9 species then the parser needs altered to accomodate.')
+        elif len(group_ord) == 1:
+            group_ord = int(group_ord[0])
+            group_count = group_ord
+        else: group_count = 0
         with self.open_file(parameters_path, 'r') as file:
             lines = file.readlines()
             for i, line in enumerate(lines):
-                if ' '+var+' ' in line: # spaces ensure filenames are not picked 
+                if ' '+var+' ' in line: # spaces ensure filenames are not picked
+                    group_count -= 1
+                if ' '+var+' ' in line and group_count < 0: # spaces ensure filenames are not picked     
                     print(i,var, value)
                     print(lines[i])
                     lines[i] = f'    {var} = {value}\n'
@@ -262,7 +271,8 @@ class GENE_scan_parser():
         namelist_string=str(namelist)
         
         #populate params: dict with all omn's required. Since each should be identical
-        if 'species-omn' in params:
+        if 'species-omn' in params or ('species','omn') in params:
+            print('species-omn was not handled by a converter, so we are handeling it now by making species 1 and 2 with the same omn')
             for i in range(namelist_string.count('&species')):
                 params[f'_grp_species_{i}-omn'] = params['species-omn']
             params.pop('species-omn')
@@ -307,7 +317,11 @@ class GENE_scan_parser():
         
         #determines the ordinal position of the scanned paramters for var_name
         def var_ordinal(param_key):
-            group, var_name = param_key.split('-')
+            if type(param_key) == type(('tuple','tuple')):
+                group, var_name = param_key
+            elif type(param_key) == type('string'):
+                Warning("Daniel Warns, we are moving away from 'group_value' format and going towards ('group','value') format")
+                group, var_name = param_key.split('-')
             group_split = group.split('_')
             if len(group_split)>1:
                 group_name = group_split[-2]
@@ -361,34 +375,59 @@ class GENE_scan_parser():
         
         return namelist_string
 
-    def read_output(self, scanlog_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log', geneerr_path='/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/geneerr.log'):
-        
-        scanlog_df = self.read_scanlog(scanlog_path)
-        # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
-        time_df = self.read_run_time(geneerr_path)
-        print('DEBUG, PATHS', scanlog_path, geneerr_path)
-        reasons = self.hit_simtimelim_test(geneerr_path, get_reasons=True)
-        reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
-        rest_df = pd.concat([time_df, reasons_df], axis=1)
-        print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
-        if len(scanlog_df) != len(rest_df):
-            print(scanlog_df)
-            print(rest_df)
-            raise ValueError(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
-        print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
-        return scanlog_df, rest_df
+    def listdir(self,dir):
+        try:
+            in_dir = self.config.paramiko_sftp_client.listdir(dir)
+        except:
+            in_dir=os.listdir(dir)
+        return in_dir
     
-    def read_fluxes(self, nrg_path, nspecies=2):
-        with self.open_file(nrg_path, 'r') as nrg_file:
-            lines = nrg_file.readlines()[-nspecies:]
-        species = []
-        for l in lines:
-            values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
-            fluxes = values[4:8]
-            fluxes_dict = {'particle_electrostatic':fluxes[0], 'particle_electromagnetic':fluxes[1], 'heat_electrostatic':fluxes[2], 'heat_electromagnetic':fluxes[3]}
-            species.append(fluxes_dict)
-        # The species are in the same order as in the gene_parameters file.
-        return species
+    def read_fluxes(self, scanfiles_dir, nrg_prefix='', nspecies=2):
+        files = self.listdir(scanfiles_dir)
+        nrg_files = np.sort(np.array([f for f in files if nrg_prefix+'nrg' in f]))
+        
+        # columns = []
+        # for i in range(1,nspecies+1):
+        #     columns += [f'particle_electrostatic_{i}', f'particle_electromagnetic_{i}', f'heat_electrostatic_{i}', f'heat_electromagnetic_{i}']
+                
+        # df = pd.DataFrame(columns=columns)
+        df = pd.DataFrame()
+        # for i in range(1,nspecies+1):
+        #     df[f'flux_particle_electrostatic_{i}']
+
+        for index, nrg_f in enumerate(nrg_files):
+            nrg_path = os.path.join(scanfiles_dir,nrg_f)
+            with self.open_file(nrg_path, 'r') as nrg_file:
+                lines = nrg_file.readlines()[-nspecies:]
+            species = []
+            for i, l in enumerate(lines):
+                i+=1
+                values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
+                fluxes = values[4:8]
+                fluxes_df = pd.DataFrame({f'particle_electrostatic_{i}':float(fluxes[0]), f'particle_electromagnetic_{i}':float(fluxes[1]), f'heat_electrostatic_{i}':float(fluxes[2]), f'heat_electromagnetic_{i}':float(fluxes[3])},index = [index])
+                species.append(fluxes_df)
+            all_species = pd.concat(species, axis=1)
+            df = pd.concat([df,all_species], axis=0)
+            # The species are in the same order as in the gene_parameters file.
+        
+        return df
+    
+    def read_parameters_dict(self, parameters_path):
+        # for some reason f90nml fails to parse with 'FCVERSION' line in the parameters file, so I comment it
+        with self.open_file(parameters_path, 'r') as parameters_file:
+            lines = parameters_file.readlines()
+            for i, line in enumerate(lines):
+                if 'FCVERSION' in line:
+                    lines[i] = '!'+line
+
+        with self.open_file(parameters_path, 'w') as parameters_file:
+            parameters_file.writelines(lines)
+
+        with self.open_file(parameters_path, 'r') as parameters_file:
+            nml = f90nml.read(parameters_file)
+            parameters_dict= nml.todict()
+        return parameters_dict
+
 
 
     def read_scanlog(self, scanlog_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):

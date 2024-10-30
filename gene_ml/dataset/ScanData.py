@@ -167,7 +167,7 @@ class ScanData(DataSet):
         elif scanfiles_target =='latest':
             print('GETTING LATEST SCANLOG')
             #Using new paramiko library
-            run_ids = self.config.paramiko_sftp_client.listdir(self.remote_save_dir)
+            run_ids = np.sort(np.array(self.listdir(self.remote_save_dir)))
             print('RUN_IDs',run_ids)
             for i, r_id in enumerate(run_ids):
                 scanfiles_dir = self.config.paramiko_sftp_client.listdir(os.path.join(self.remote_save_dir,r_id))
@@ -298,7 +298,7 @@ class ScanData(DataSet):
 class ScanData2(DataSet):
     # paramiko update
     # update to include info about termination reason
-    def __init__(self, config, name=None, parser=None, sampler=None, remote_save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
+    def __init__(self, config, name=None, parser=None, sampler=None, save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -308,7 +308,7 @@ class ScanData2(DataSet):
         self.config = config
         self.name = name
         self.parser = parser
-        self.remote_save_dir = remote_save_dir
+        self.save_dir = save_dir
         self.scan_name = scan_name
         self.sampler = sampler
         self.split_ratio = split_ratio
@@ -316,8 +316,8 @@ class ScanData2(DataSet):
         self.random_state=random_state
         self.parameters_map = parameters_map
         
-        if remote_save_dir != None:
-            self.scanlog_df, self.rest_df = self.load_from_remote_save_dir()
+        if save_dir != None:
+            self.scanlog_df, self.rest_df = self.load_from_save_dir()
 
             #for quasineutrality omn1 is the same as omn2 so we can remove one
             if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
@@ -372,34 +372,128 @@ class ScanData2(DataSet):
         self.frequencies_test = self.frequencies[random_categories=='test']
         self.run_time_test = self.frequencies[random_categories=='test']
 
-    def load_from_file(self, scan_path, geneerr_path):
-        scanlog_df, rest_df = self.parser.read_output(scan_path, geneerr_path)
+    def load_diffusivities(self, scanfiles_path):
+        file_names = np.array(self.listdir(scanfiles_path))
+        parameters_file_names = np.array([f for f in file_names if 'parameters_' in f and not 'eff' in f])
+        parameters_file_names = np.sort(parameters_file_names)
+        parameters_paths = [os.path.join(scanfiles_path, parameters_file_name) for parameters_file_name in parameters_file_names]
+        fluxes_df = self.parser.read_fluxes(scanfiles_path)
+        df = pd.DataFrame()
+        for i, parameters_path in enumerate(parameters_paths):
+            parameters_dict = self.parser.read_parameters_dict(parameters_path)
+            nref = parameters_dict['units']['nref']
+            Tref = parameters_dict['units']['tref']
+            Lref = parameters_dict['units']['lref']
+            keys = list(parameters_dict.keys())
+            species = [s for s in keys if 'species' in s]
+            species_df = []
+            for j, spec in enumerate(species):
+                j+=1
+                name = parameters_dict[spec]['name']
+                particle_flux = fluxes_df[f'particle_electrostatic_{j}'].iloc[i] + fluxes_df[f'particle_electromagnetic_{j}'].iloc[i]
+                omn = parameters_dict[spec]['omn']
+                n = nref * parameters_dict[spec]['dens']
+                grad_n = -(n/Lref) * omn
+                particle_diff = - particle_flux / grad_n
+                
+                heat_flux = fluxes_df[f'heat_electrostatic_{j}'].iloc[i] + fluxes_df[f'heat_electromagnetic_{j}'].iloc[i]
+                omt = parameters_dict[spec]['omt'] 
+                T = parameters_dict[spec]['temp'] * Tref
+                grad_T = omt * -(T/Lref)
+                
+                heat_diff = -(heat_flux - (3/2)*T*particle_flux)/(n * grad_T)
+                
+                diff_df = pd.DataFrame({f'particle_diff_{name}':particle_diff, f'heat_diff_{name}':heat_diff, f'particle_flux_{name}':particle_flux, f'heat_flux_{name}':heat_flux}, index=[i])
+                species_df.append(diff_df)
+            all_species = pd.concat(species_df, axis=1)
+            df = pd.concat([df,all_species], axis=0)
+        return df
+    
+    def fingerprints_categorisation(self, scanfiles_path):
+        diff_df = self.load_diffusivities(scanfiles_path)
+        heat_diff_i = diff_df['heat_diff_i'].to_numpy()
+        heat_diff_e = diff_df['heat_diff_e'].to_numpy()
+        ratio_iheat_eheat = heat_diff_i / heat_diff_e
+
+        particle_diff_e = diff_df['particle_diff_e'].to_numpy()
+        ratio_eparticle_eheat = particle_diff_e / heat_diff_e
+
+        ratio_eparticle_heat = particle_diff_e / (heat_diff_e + heat_diff_i)
+        instability = []
+        tolerance = 0.8
+        for i in range(len(diff_df)):
+            if 1-1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1+1*tolerance and (2/3)-(2/3)*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < (2/3)+(2/3)*tolerance:
+                instability.append('MHD-like')
+            elif 0.1-0.1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+0.1*tolerance and 0.1-0.1*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.1+0.1*tolerance:
+                instability.append('MTM')
+            elif 0.1-0.1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+0.1*tolerance and 0.05-0.05*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.05+0.05*tolerance:
+                instability.append('ETG')
+            elif 0.25 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1 and -0.1-(1/3) < ratio_eparticle_heat[i] and ratio_eparticle_heat[i] < -0.1+(1/3):
+                instability.append('ITG/TEM')
+            else:
+                instability.append('None')
+        
+        df = pd.DataFrame()
+        df['fingerprint'] = instability
+        df['ratio_iheat_eheat'] = ratio_iheat_eheat
+        df['ratio_eparticle_eheat'] = ratio_eparticle_eheat
+        return df
+        # parameters_dict = self.parser.read_parameters_dict()
+        
+
+    def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
+        scanlog_df = self.parser.read_scanlog(scanlog_path)
+        # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
+        time_df = self.parser.read_run_time(geneerr_path)
+        reasons = self.parser.hit_simtimelim_test(geneerr_path, get_reasons=True)
+        reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
+        fingerprints_df = self.fingerprints_categorisation(scanfiles_dir)
+        diff_df = self.load_diffusivities(scanfiles_dir)
+        fluxes_df = self.parser.read_fluxes(scanfiles_dir)
+        
+        rest_df = pd.concat([time_df, reasons_df, fingerprints_df, diff_df, fluxes_df], axis=1)
+        print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+        if len(scanlog_df) != len(rest_df):
+            print(scanlog_df)
+            print(rest_df)
+            raise ValueError(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+        print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
+        
+        
         return scanlog_df, rest_df
     
-    def load_from_remote_save_dir(self):
-        batches = self.config.paramiko_sftp_client.listdir(self.remote_save_dir)
+    def load_from_save_dir(self):
+        batches = self.listdir(self.save_dir)
         batches = np.sort(np.array(batches))
-        batch_dirs = [os.path.join(self.remote_save_dir, batch) for batch in batches]
+        batch_dirs = [os.path.join(self.save_dir, batch) for batch in batches]
         latest_scanfile_dirs = []
         for batch_dir in batch_dirs:
-            scanfiles_dir = self.config.paramiko_sftp_client.listdir(batch_dir)
+            scanfiles_dir = np.sort(np.array(self.listdir(batch_dir)))
             scanfiles_number = [re.findall('[0-9]{4}',sc_dir) for sc_dir in scanfiles_dir]
             latest_scanfile = scanfiles_dir[np.argmax(np.array(scanfiles_number).astype('int'))]
             latest_scanfile_dirs.append(os.path.join(batch_dir,latest_scanfile))
 
         scanlog_dfs = []
         rest_dfs = []
-        for scanfile_dir in latest_scanfile_dirs:
-            scanlog_path = os.path.join(scanfile_dir,f'{self.scan_name}scan.log')
-            generr_path = os.path.join(scanfile_dir,f'{self.scan_name}geneerr.log')
-            scanlog_df, rest_df = self.load_from_file(scanlog_path, generr_path)
+        for scanfiles_dir in latest_scanfile_dirs:
+            scanlog_path = os.path.join(scanfiles_dir,f'{self.scan_name}scan.log')
+            generr_path = os.path.join(scanfiles_dir,f'{self.scan_name}geneerr.log')
+            scanlog_df, rest_df = self.load_from_file(scanlog_path, generr_path, scanfiles_dir=scanfiles_dir)
             scanlog_dfs.append(scanlog_df)
             rest_dfs.append(rest_df)
         
         scanlog_df = pd.concat(scanlog_dfs, axis=0)
+        scanlog_df.index = np.arange(len(scanlog_df))
         rest_df = pd.concat(rest_dfs, axis=0)
+        rest_df.index = np.arange(len(rest_df))
         return scanlog_df, rest_df
-        
+    
+    def listdir(self,dir):
+        try:
+            in_dir = self.config.paramiko_sftp_client.listdir(dir)
+        except:
+            in_dir=os.listdir(dir)
+        return in_dir
 
     def remove_nans(self, df):
         ## caution, can only work for df created from single file.
@@ -521,16 +615,16 @@ if __name__ == '__main__':
     sys.path.append('/home/djdaniel/DEEPlasma/GENE_ML/gene_ml')
     from parsers.GENEparser import GENE_scan_parser
     base_params_path = os.path.join(os.getcwd(),'parameters_base_dp')
-    remote_save_dir='/project/project_462000451/gene_out/gene_auto'
+    save_dir='/project/project_462000451/gene_out/gene_auto'
     save_dir = "temp/"
-    parser = GENE_scan_parser(save_dir, base_params_path, remote_save_dir)
+    parser = GENE_scan_parser(save_dir, base_params_path, save_dir)
 
     # ssh_path = None
-#    remote_save_dir = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
-    remote_save_dir = "/scratch/project_462000451/gene_out/gene_auto/nan100"
+#    save_dir = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
+    save_dir = "/scratch/project_462000451/gene_out/gene_auto/nan100"
     host = 'lumi'
     #data_set = ScanData('100_3p', parser, ssh_path=ssh_path)
-    data_set = ScanData('testwithnan', parser, host, remote_save_dir=remote_save_dir)
+    data_set = ScanData('testwithnan', parser, host, save_dir=save_dir)
     
 
     print('HEAD',data_set.head)
