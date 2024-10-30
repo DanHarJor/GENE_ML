@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 import pickle
+import warnings
 import re
 try:
     from .base import DataSet
@@ -335,7 +336,7 @@ class ScanData2(DataSet):
         # if type(self.sampler) != type(None):            
         #     self.match_sampler(self.sampler)
         
-    def set_from_df(self, df=None, rest_df_ncol = None):
+    def set_from_df(self, df=None, rest_df_ncol = 1):
         if type(df) != type(None):
             if rest_df_ncol != None:
                 self.rest_df_ncol = rest_df_ncol 
@@ -350,7 +351,7 @@ class ScanData2(DataSet):
         self.x = self.scanlog_df_no_nan.drop(columns=['growthrate','frequency']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.scanlog_df_no_nan['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.scanlog_df_no_nan['frequency'].to_numpy(dtype=float)
-        self.run_time = self.rest_df_no_nan['run_time'].to_numpy(dtype=float)
+        # self.run_time = self.rest_df_no_nan['run_time'].to_numpy(dtype=float)
 
         # Define the categories and their corresponding probabilities
         categories = ['train', 'val', 'test']
@@ -441,24 +442,28 @@ class ScanData2(DataSet):
         # parameters_dict = self.parser.read_parameters_dict()
         
 
-    def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
+    def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix='', categorise=False):    
         scanlog_df = self.parser.read_scanlog(scanlog_path)
         # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
-        time_df = self.parser.read_run_time(geneerr_path)
-        reasons = self.parser.hit_simtimelim_test(geneerr_path, get_reasons=True)
-        reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
-        fingerprints_df = self.fingerprints_categorisation(scanfiles_dir)
-        diff_df = self.load_diffusivities(scanfiles_dir)
-        fluxes_df = self.parser.read_fluxes(scanfiles_dir)
-        
-        rest_df = pd.concat([time_df, reasons_df, fingerprints_df, diff_df, fluxes_df], axis=1)
-        print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+        if categorise: 
+            time_df = self.parser.read_run_time(geneerr_path)
+            reasons = self.parser.hit_simtimelim_test(geneerr_path, get_reasons=True)
+            reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
+            fingerprints_df = self.fingerprints_categorisation(scanfiles_dir)
+            diff_df = self.load_diffusivities(scanfiles_dir)
+            fluxes_df = self.parser.read_fluxes(scanfiles_dir)
+            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, diff_df, fluxes_df], axis=1)
+            print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
+            print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+
+        else: rest_df = pd.DataFrame({'REST':np.repeat('rest', len(scanlog_df))})
+
+
         if len(scanlog_df) != len(rest_df):
             print(scanlog_df)
             print(rest_df)
-            raise ValueError(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
-        print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
-        
+            rest_df = pd.DataFrame({'ERROR':np.repeat(None, len(scanlog_df))})
+            warnings.warn(f'Daniel Says: For some reason the number of runs detected in the scan.log ({len(scanlog_df)}) does not match geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n, {scanlog_path, geneerr_path}')
         
         return scanlog_df, rest_df
     
@@ -569,7 +574,7 @@ class ScanData2(DataSet):
             dfs.append(ds.df)
         joint_df = pd.concat(dfs)
         self.df = joint_df
-        self.set_from_df()
+        self.set_from_df(df=joint_df)
         return self
 
 

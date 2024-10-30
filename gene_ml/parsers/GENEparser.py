@@ -10,6 +10,9 @@ import re
 import time
 from ..tools import sec_to_time_format 
 
+from collections import deque
+
+
 import sys
 
 
@@ -383,6 +386,7 @@ class GENE_scan_parser():
         return in_dir
     
     def read_fluxes(self, scanfiles_dir, nrg_prefix='', nspecies=2):
+        print('READING FLUXES')
         files = self.listdir(scanfiles_dir)
         nrg_files = np.sort(np.array([f for f in files if nrg_prefix+'nrg' in f]))
         
@@ -395,10 +399,16 @@ class GENE_scan_parser():
         # for i in range(1,nspecies+1):
         #     df[f'flux_particle_electrostatic_{i}']
 
+
+        # def read_last_lines(file_path, num_lines):
+        #     with open(file_path, 'rb') as file:
+        #         return deque(file, maxlen=num_lines)
+
         for index, nrg_f in enumerate(nrg_files):
             nrg_path = os.path.join(scanfiles_dir,nrg_f)
             with self.open_file(nrg_path, 'r') as nrg_file:
-                lines = nrg_file.readlines()[-nspecies:]
+                lines = deque(nrg_file, maxlen=nspecies)
+                #lines = nrg_file.readlines()[-nspecies:]
             species = []
             for i, l in enumerate(lines):
                 i+=1

@@ -14,7 +14,7 @@ from GPy.kern import RatQuad
 import numpy as np
 
 class GPR(Model):
-    def __init__(self, name, kernel_type='rational_quadratic'):
+    def __init__(self, name, kernel_type='matern32'):
         super().__init__(name)
         self.regressor = None
         self.model_type_id = 'gpr'
