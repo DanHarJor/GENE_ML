@@ -300,7 +300,7 @@ class ScanData(DataSet):
 class ScanData2(DataSet):
     # paramiko update
     # update to include info about termination reason
-    def __init__(self, config, name=None, parser=None, sampler=None, save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None):
+    def __init__(self, config, name=None, parser=None, sampler=None, save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None, categorise=False):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -317,6 +317,7 @@ class ScanData2(DataSet):
 
         self.random_state=random_state
         self.parameters_map = parameters_map
+        self.categorise = categorise
         
         if save_dir != None:
             self.scanlog_df, self.rest_df = self.load_from_save_dir()
@@ -348,6 +349,7 @@ class ScanData2(DataSet):
         nan_mask = ~np.isnan(self.scanlog_df['growthrate'].to_numpy(dtype=float))
         self.scanlog_df_no_nan = self.scanlog_df.loc[nan_mask]
         self.rest_df_no_nan = self.rest_df.loc[nan_mask]
+        self.df_no_nan = self.df[nan_mask]
         self.head = list(self.scanlog_df_no_nan.columns)
         self.x = self.scanlog_df_no_nan.drop(columns=['growthrate','frequency']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.scanlog_df_no_nan['growthrate'].to_numpy(dtype=float)
@@ -444,10 +446,10 @@ class ScanData2(DataSet):
         # parameters_dict = self.parser.read_parameters_dict()
         
 
-    def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix='', categorise=False):    
+    def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
         scanlog_df = self.parser.read_scanlog(scanlog_path)
         # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
-        if categorise: 
+        if self.categorise: 
             time_df = self.parser.read_run_time(geneerr_path)
             reasons = self.parser.hit_simtimelim_test(geneerr_path, get_reasons=True)
             reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
