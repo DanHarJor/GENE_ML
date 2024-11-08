@@ -204,7 +204,6 @@ class GENE_scan_parser():
         self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
 
     def alter_parameters_file(self, parameters_path, group_var, value):
-        # assumes no two different groups have the same name for their parameters
         group, var = group_var
         group_ord = re.findall('[0-9]', group)
         if len(group_ord) > 1:
@@ -385,8 +384,18 @@ class GENE_scan_parser():
             in_dir=os.listdir(dir)
         return in_dir
     
+    def read_species_names(self, parameters_path):
+        names = []
+        with self.open_file(parameters_path) as parameters_file:
+            for line in parameters_file:
+                if 'name' in line:
+                    names.append(line.split('=')[-1].strip().strip("'")) 
+        names = [s.replace('i', 'ion').replace('e', 'electron') for s in names]
+        return names
+    
     def read_fluxes(self, scanfiles_dir, nrg_prefix='', nspecies=2):
         print('READING FLUXES')
+        species_names = self.read_species_names(parameters_path=os.path.join(scanfiles_dir,'parameters'))
         files = self.listdir(scanfiles_dir)
         nrg_files = np.sort(np.array([f for f in files if nrg_prefix+'nrg' in f]))
         
@@ -410,11 +419,10 @@ class GENE_scan_parser():
                 lines = deque(nrg_file, maxlen=nspecies)
                 #lines = nrg_file.readlines()[-nspecies:]
             species = []
-            for i, l in enumerate(lines):
-                i+=1
+            for species_name, l in zip(species_names, lines):
                 values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
                 fluxes = values[4:8]
-                fluxes_df = pd.DataFrame({f'particle_electrostatic_{i}':float(fluxes[0]), f'particle_electromagnetic_{i}':float(fluxes[1]), f'heat_electrostatic_{i}':float(fluxes[2]), f'heat_electromagnetic_{i}':float(fluxes[3])},index = [index])
+                fluxes_df = pd.DataFrame({f'particle_electrostatic_{species_name}':float(fluxes[0]), f'particle_electromagnetic_{species_name}':float(fluxes[1]), f'heat_electrostatic_{species_name}':float(fluxes[2]), f'heat_electromagnetic_{species_name}':float(fluxes[3])},index = [index])
                 species.append(fluxes_df)
             all_species = pd.concat(species, axis=1)
             df = pd.concat([df,all_species], axis=0)
