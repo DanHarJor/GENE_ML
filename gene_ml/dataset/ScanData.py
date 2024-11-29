@@ -321,7 +321,7 @@ class ScanData2(DataSet):
         
         if save_dir != None:
             self.scanlog_df, self.rest_df = self.load_from_save_dir()
-
+            self.rest_df_ncol=len(self.rest_df.columns)
             #for quasineutrality omn1 is the same as omn2 so we can remove one
             if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
                 self.scanlog_df = self.scanlog_df.drop(columns=['omn2'])
@@ -339,6 +339,7 @@ class ScanData2(DataSet):
         #     self.match_sampler(self.sampler)
         
     def set_from_df(self, df=None, rest_df_ncol = 1):
+        # is statement determins is we are setting to in inputed df or from the ones taken from files in the __init__
         if type(df) != type(None):
             if rest_df_ncol != None:
                 self.rest_df_ncol = rest_df_ncol 
@@ -392,16 +393,15 @@ class ScanData2(DataSet):
             keys = list(parameters_dict.keys())
             species = [s for s in keys if 'species' in s]
             species_df = []
-            for j, spec in enumerate(species):
-                j+=1
-                name = parameters_dict[spec]['name']
-                particle_flux = fluxes_df[f'particle_electrostatic_{j}'].iloc[i] + fluxes_df[f'particle_electromagnetic_{j}'].iloc[i]
+            species_names = self.parser.read_species_names(parameters_path)
+            for name, spec in zip(species_names,species):
+                particle_flux = fluxes_df[f'particle_electrostatic_{name}'].iloc[i] + fluxes_df[f'particle_electromagnetic_{name}'].iloc[i]
                 omn = parameters_dict[spec]['omn']
                 n = nref * parameters_dict[spec]['dens']
                 grad_n = -(n/Lref) * omn
                 particle_diff = - particle_flux / grad_n
                 
-                heat_flux = fluxes_df[f'heat_electrostatic_{j}'].iloc[i] + fluxes_df[f'heat_electromagnetic_{j}'].iloc[i]
+                heat_flux = fluxes_df[f'heat_electrostatic_{name}'].iloc[i] + fluxes_df[f'heat_electromagnetic_{name}'].iloc[i]
                 omt = parameters_dict[spec]['omt'] 
                 T = parameters_dict[spec]['temp'] * Tref
                 grad_T = omt * -(T/Lref)
@@ -415,36 +415,92 @@ class ScanData2(DataSet):
         return df
     
     def fingerprints_categorisation(self, scanfiles_path):
+        # this method includes the fingerprints ratios and also includes the electron EM flux vs ES flux
         diff_df = self.load_diffusivities(scanfiles_path)
-        heat_diff_i = diff_df['heat_diff_i'].to_numpy()
-        heat_diff_e = diff_df['heat_diff_e'].to_numpy()
+        heat_diff_i = diff_df['heat_diff_ion'].to_numpy()
+        heat_diff_e = diff_df['heat_diff_electron'].to_numpy()
         ratio_iheat_eheat = heat_diff_i / heat_diff_e
 
-        particle_diff_e = diff_df['particle_diff_e'].to_numpy()
+        particle_diff_e = diff_df['particle_diff_electron'].to_numpy()
         ratio_eparticle_eheat = particle_diff_e / heat_diff_e
 
         ratio_eparticle_heat = particle_diff_e / (heat_diff_e + heat_diff_i)
-        instability = []
-        tolerance = 0.8
-        for i in range(len(diff_df)):
-            if 1-1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1+1*tolerance and (2/3)-(2/3)*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < (2/3)+(2/3)*tolerance:
-                instability.append('MHD-like')
-            elif 0.1-0.1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+0.1*tolerance and 0.1-0.1*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.1+0.1*tolerance:
-                instability.append('MTM')
-            elif 0.1-0.1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+0.1*tolerance and 0.05-0.05*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.05+0.05*tolerance:
-                instability.append('ETG')
-            elif 0.25 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1 and -0.1-(1/3) < ratio_eparticle_heat[i] and ratio_eparticle_heat[i] < -0.1+(1/3):
-                instability.append('ITG/TEM')
-            else:
-                instability.append('None')
+        instability_rows = []
         
+        # for i in range(len(diff_df)):
+        #     if 0.2 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 10 and 0.2 < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 10:
+        #         inst.append('MHD-like')
+        #     if ratio_iheat_eheat[i] > 10:
+        #         print(f"row {i} has a really high iheat_eheat flux ratio, over {10}, investigate")
+        #     if ratio_eparticle_eheat[i] > 10:
+        #         print(f"row {i} has a really high ratio_eparticle_eheat, over {10}, investigate")
+        #     if 0 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.25 and 0 < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.66:
+        #         inst.append('MTM')
+        #     if 0.1-0.1*tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+0.1*tolerance and 0.05-0.05*tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 0.05+0.05*tolerance:
+        #         inst.append('ETG')
+        #     if 0.25 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1 and -0.1-(1/3) < ratio_eparticle_heat[i] and ratio_eparticle_heat[i] < -0.1+(1/3):
+        #         inst.append('ITG/TEM')
+        #     else:
+        #         inst.append('None')
+        MHD_tolerance = 0.5
+        MTM_tolerance = 0.1
+        ETG_tolerance = 0.1
+        ITG_TEM_tolerance = 0.1
+        for i in range(len(diff_df)):
+            inst = []
+            if 1-MHD_tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1+MHD_tolerance and (2/3)-MHD_tolerance < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < (2/3)+MHD_tolerance:
+                inst.append('MHD-like')
+            if 0.1-MTM_tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 0.1+MTM_tolerance and 0.1-MTM_tolerance < np.abs(ratio_eparticle_eheat[i]) and np.abs(ratio_eparticle_eheat[i]) < 0.1+MTM_tolerance:
+                inst.append('MTM')
+            if 0.1-ETG_tolerance < np.abs(ratio_iheat_eheat[i]) and ratio_iheat_eheat[i] < 0.1+ETG_tolerance and 0.05-ETG_tolerance < np.abs(ratio_eparticle_eheat[i]) and np.abs(ratio_eparticle_eheat[i]) < 0.05+ETG_tolerance:
+                inst.append('ETG')
+            if 0.25-ITG_TEM_tolerance < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 1+ITG_TEM_tolerance and -0.1-(1/3)-ITG_TEM_tolerance < ratio_eparticle_heat[i] and ratio_eparticle_heat[i] < -0.1+(1/3)+ITG_TEM_tolerance:
+                inst.append('ITG/TEM')
+            if len(inst) == 0:
+                inst.append('None')
+            instability_rows.append(inst)
+
         df = pd.DataFrame()
-        df['fingerprint'] = instability
+        df['fingerprint'] = instability_rows
         df['ratio_iheat_eheat'] = ratio_iheat_eheat
         df['ratio_eparticle_eheat'] = ratio_eparticle_eheat
         return df
         # parameters_dict = self.parser.read_parameters_dict()
+    
+    def em_categorisation(self, scanfiles_path):
+        # MTM has a lot of electromagnetic flux
+        fluxes_df = self.parser.read_fluxes(scanfiles_path)
+        ratio = fluxes_df['heat_electromagnetic_electron'] / fluxes_df['heat_electrostatic_electron']
+        mask_MTM = ratio > 0.5
+        categorisation = np.where(mask_MTM, 'yes_MTM', 'no_MTM')
+        em_cat_df = pd.DataFrame(categorisation, columns=['em_categorisation'])
+        return em_cat_df
+    
+    def final_categorisation(self, scanfiles_path):
+        em_df = self.em_categorisation(scanfiles_path)
+        fingerprints_df = self.fingerprints_categorisation(scanfiles_path)
+
+
+
+        mask_mtm_fingerprint = np.array(['MTM' in row for row in fingerprints_df['fingerprint']])
+        mask_em = np.array(['yes_MTM' in row for row in em_df['em_categorisation']])
+        # mask_em = np.char.find(em_df['em_categorisation'], 'MTM') != -1 # might be faster, not tested
+        mask_mtm = mask_mtm_fingerprint * mask_em
         
+        mask_etg_fingerprint = np.array(['ETG' in row for row in fingerprints_df['fingerprint']])
+        mask_em_flip = ~mask_em
+        mask_etg = mask_etg_fingerprint * mask_em_flip
+        
+        categorisation = np.repeat('Nothing',len(fingerprints_df))
+
+        overlap = mask_etg & mask_mtm
+        if any(overlap):
+            print('Daniel Says: There is an issue with the categorisation because some runs are being identified as multiple modes but only one it being returned')
+
+        categorisation[mask_mtm] = 'MTM'
+        categorisation[mask_etg] = 'ETG'
+
+        return pd.DataFrame({'categorisation':categorisation}) 
 
     def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
         scanlog_df = self.parser.read_scanlog(scanlog_path)
@@ -454,9 +510,11 @@ class ScanData2(DataSet):
             reasons = self.parser.hit_simtimelim_test(geneerr_path, get_reasons=True)
             reasons_df = pd.DataFrame(reasons, columns=['termination_reason'])
             fingerprints_df = self.fingerprints_categorisation(scanfiles_dir)
+            em_cat_df = self.em_categorisation(scanfiles_dir)
             diff_df = self.load_diffusivities(scanfiles_dir)
             fluxes_df = self.parser.read_fluxes(scanfiles_dir)
-            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, diff_df, fluxes_df], axis=1)
+            categorise_df = self.final_categorisation(scanfiles_dir)
+            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df], axis=1)
             print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
             print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
 
@@ -574,11 +632,17 @@ class ScanData2(DataSet):
 
     def concat(self, datasets):
         dfs = [self.df]
+        rest_df_ncol=[]
         for ds in datasets:
+            rest_df_ncol.append(ds.rest_df_ncol)
             dfs.append(ds.df)
+        if not all(x == rest_df_ncol[0] for x in rest_df_ncol):
+            raise ValueError("Daniel says: there must be the same number of rest columns in each data set. Or else the concat won't work.")
+        else:
+            rest_df_ncol = rest_df_ncol[0]
         joint_df = pd.concat(dfs)
         self.df = joint_df
-        self.set_from_df(df=joint_df)
+        self.set_from_df(df=joint_df,rest_df_ncol=rest_df_ncol)
         return self
 
 
