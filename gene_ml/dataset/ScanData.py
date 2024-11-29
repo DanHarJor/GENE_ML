@@ -321,7 +321,7 @@ class ScanData2(DataSet):
         
         if save_dir != None:
             self.scanlog_df, self.rest_df = self.load_from_save_dir()
-
+            self.rest_df_ncol=len(self.rest_df.columns)
             #for quasineutrality omn1 is the same as omn2 so we can remove one
             if any(np.array(self.scanlog_df.columns.values.tolist()) == 'omn2'):
                 self.scanlog_df = self.scanlog_df.drop(columns=['omn2'])
@@ -339,6 +339,7 @@ class ScanData2(DataSet):
         #     self.match_sampler(self.sampler)
         
     def set_from_df(self, df=None, rest_df_ncol = 1):
+        # is statement determins is we are setting to in inputed df or from the ones taken from files in the __init__
         if type(df) != type(None):
             if rest_df_ncol != None:
                 self.rest_df_ncol = rest_df_ncol 
@@ -471,9 +472,36 @@ class ScanData2(DataSet):
         fluxes_df = self.parser.read_fluxes(scanfiles_path)
         ratio = fluxes_df['heat_electromagnetic_electron'] / fluxes_df['heat_electrostatic_electron']
         mask_MTM = ratio > 0.5
-        categorisation = np.where(mask_MTM, 'MTM', 'not_MTM')
+        categorisation = np.where(mask_MTM, 'yes_MTM', 'no_MTM')
         em_cat_df = pd.DataFrame(categorisation, columns=['em_categorisation'])
         return em_cat_df
+    
+    def final_categorisation(self, scanfiles_path):
+        em_df = self.em_categorisation(scanfiles_path)
+        fingerprints_df = self.fingerprints_categorisation(scanfiles_path)
+
+
+
+        mask_mtm_fingerprint = np.array(['MTM' in row for row in fingerprints_df['fingerprint']])
+        mask_em = np.array(['yes_MTM' in row for row in em_df['em_categorisation']])
+        # mask_em = np.char.find(em_df['em_categorisation'], 'MTM') != -1 # might be faster, not tested
+        mask_mtm = mask_mtm_fingerprint * mask_em
+        
+        mask_etg_fingerprint = np.array(['ETG' in row for row in fingerprints_df['fingerprint']])
+        mask_em_flip = ~mask_em
+        mask_etg = mask_etg_fingerprint * mask_em_flip
+        
+        categorisation = np.repeat('Nothing',len(fingerprints_df))
+
+        overlap = mask_etg & mask_mtm
+        if any(overlap):
+            print('Daniel Says: There is an issue with the categorisation because some runs are being identified as multiple modes but only one it being returned')
+
+        categorisation[mask_mtm] = 'MTM'
+        categorisation[mask_etg] = 'ETG'
+
+        return pd.DataFrame({'categorisation':categorisation}) 
+
     def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
         scanlog_df = self.parser.read_scanlog(scanlog_path)
         # Currently this assumes the generr file is in the same order as the scanlog file. It is known this is not true and an identifier needs to be placed to match them up.
@@ -485,7 +513,8 @@ class ScanData2(DataSet):
             em_cat_df = self.em_categorisation(scanfiles_dir)
             diff_df = self.load_diffusivities(scanfiles_dir)
             fluxes_df = self.parser.read_fluxes(scanfiles_dir)
-            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df], axis=1)
+            categorise_df = self.final_categorisation(scanfiles_dir)
+            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df], axis=1)
             print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
             print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
 
@@ -603,11 +632,17 @@ class ScanData2(DataSet):
 
     def concat(self, datasets):
         dfs = [self.df]
+        rest_df_ncol=[]
         for ds in datasets:
+            rest_df_ncol.append(ds.rest_df_ncol)
             dfs.append(ds.df)
+        if not all(x == rest_df_ncol[0] for x in rest_df_ncol):
+            raise ValueError("Daniel says: there must be the same number of rest columns in each data set. Or else the concat won't work.")
+        else:
+            rest_df_ncol = rest_df_ncol[0]
         joint_df = pd.concat(dfs)
         self.df = joint_df
-        self.set_from_df(df=joint_df)
+        self.set_from_df(df=joint_df,rest_df_ncol=rest_df_ncol)
         return self
 
 
