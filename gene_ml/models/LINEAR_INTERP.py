@@ -7,7 +7,7 @@ except:
         raise ImportError 
 
 from scipy.interpolate import LinearNDInterpolator
-
+import numpy as np
 class LINEAR_INTERP(Model):
     def __init__(self, name):
         super().__init__(name)
@@ -19,9 +19,12 @@ class LINEAR_INTERP(Model):
     def tune_hypers(self, x, y):
         print('LINEAR INTERPOLATION HAS NO HYPERPARAMETERS')
 
-    def predict(self, x):
+    def predict(self, x, return_std):
         y_predict = self.regressor(x)
-        return y_predict
+        if return_std:
+            return y_predict, np.zeros(len(y_predict))
+        else:
+            return y_predict
     
     
     

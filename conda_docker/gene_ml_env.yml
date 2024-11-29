@@ -20,6 +20,7 @@ dependencies:
   - babel=2.14.0=pyhd8ed1ab_0
   - bcrypt=3.2.0=py312h5eee18b_1
   - beautifulsoup4=4.12.3=pyha770c72_0
+  - blas=1.0=openblas
   - bleach=6.1.0=pyhd8ed1ab_0
   - brotli=1.1.0=hd590300_1
   - brotli-bin=1.1.0=hd590300_1
@@ -220,6 +221,7 @@ dependencies:
   - pulseaudio-client=17.0=hb77b528_0
   - pure_eval=0.2.2=pyhd8ed1ab_0
   - py-xgboost=2.0.3=cpu_pyh995e691_4
+  - pybind11-abi=5=hd3eb1b0_0
   - pycparser=2.22=pyhd8ed1ab_0
   - pygments=2.18.0=pyhd8ed1ab_0
   - pynacl=1.5.0=py312h5eee18b_0
@@ -306,8 +308,11 @@ dependencies:
       - cython==3.0.10
       - dill==0.3.8
       - gpy==1.13.1
+      - iteration-utilities==0.13.0
+      - makefun==1.15.6
       - paramz==0.9.6
       - pysgpp==3.3.1
+      - scikit-activeml==0.5.2
       - scipy==1.11.4
       - scp==0.15.0
       - sparsespace==1.1.0
