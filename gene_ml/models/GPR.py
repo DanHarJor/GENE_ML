@@ -40,8 +40,10 @@ class GPR(Model):
         self.regressor = GPRegression(x, y, kernel, noise_var=1.0)
         print('CURRENT HYPERS:\n', self.regressor)
         print('OPTIMISING THE HYPERPERS:')
-        self.regressor.optimize_restarts(num_restarts = 3)
+        self.regressor.optimize_restarts(num_restarts = 10)
+
         print('RESULTING HYPERS:\n',self.regressor)
+
     
     def predict(self, x, disclude_errors=False):
         input = np.array(x)
