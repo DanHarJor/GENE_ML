@@ -1,7 +1,7 @@
 import numpy as np
 
 class Uniform():
-    def __init__(self, bounds, seed):
+    def __init__(self, bounds, seed=42):
         self.bounds = bounds
         self.rng = np.random.default_rng(seed=seed)
         self.uniform = lambda n_samples: self.rng.uniform(*bounds, n_samples)
