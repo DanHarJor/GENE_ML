@@ -1,19 +1,18 @@
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
-        
-class Montecarlo():
-    def __init__(self, function, distributions, dimension_labels=None):
-        self.function = function #must return a scalar, this is what we want to quantify the uncertianty of
-        self.distributions = distributions #an array of distributions, one for each dimension of the problem, must be in the order that the function expects the input to be in  
-        if dimension_labels == None:
-            dimension_labels = np.arange(len(distributions)).astype('str')
+from GENE_ML.gene_ml.uncertianty_quantification.distributions.uniform import Uniform
 
+
+class Montecarlo():
+    def __init__(self, function):
+        self.function = function #must return a scalar, this is what we want to quantify the uncertianty of
         self.output_kde = None
         self.f = None
-    def compute_output_distribution(self, n_samples):
+
+    def compute_output_distribution(self, n_samples, input_distributions):
         dist_samples = []
-        for dist in self.distributions:
+        for dist in input_distributions:
             print(dist.sample(n_samples).shape)
             dist_samples.append(dist.sample(n_samples))
 
@@ -25,19 +24,19 @@ class Montecarlo():
         self.output_kde = kde
         
     def plot_output_distribution(self, bins=100, nominal_parameters=None):
-        grid_size = 1000
-        plot_bounds = [(0,1),(0,1)]
-        xlow, xhigh = plot_bounds[0][0], plot_bounds[0][1]
-        ylow, yhigh = plot_bounds[1][0], plot_bounds[1][1]
-        x = np.linspace(xlow, xhigh, grid_size)
-        y = np.linspace(ylow, yhigh, grid_size)
-        X, Y = np.meshgrid(x, y)
-        pos = np.dstack((X, Y))
-        Zmax = self.function(pos)
-        # Zdist = np.mean([dist(pos) for dist in self.distributions])
+        # grid_size = 1000
+        # plot_bounds = [(0,1),(0,1)]
+        # xlow, xhigh = plot_bounds[0][0], plot_bounds[0][1]
+        # ylow, yhigh = plot_bounds[1][0], plot_bounds[1][1]
+        # x = np.linspace(xlow, xhigh, grid_size)
+        # y = np.linspace(ylow, yhigh, grid_size)
+        # X, Y = np.meshgrid(x, y)
+        # pos = np.dstack((X, Y))
+        # Zmax = self.function(pos)
+        # # Zdist = np.mean([dist(pos) for dist in self.distributions])
 
-        out_dist = Zmax.flatten()
-        kde_out = stats.gaussian_kde(out_dist)
+        # out_dist = Zmax.flatten()
+        # kde_out = stats.gaussian_kde(out_dist)
 
 
         if type(self.output_kde) == type(None) or type(self.f) == type(None): 
@@ -46,7 +45,7 @@ class Montecarlo():
         hist_x = np.linspace(np.min(self.f),np.max(self.f), 1000)
         n, bins, _ = plt.hist(self.f, bins=bins, density=True)
         plt.plot(hist_x, self.output_kde(hist_x), label='Gaussian Kernel Density Estimate')
-        plt.plot(hist_x, kde_out(hist_x), color='red', label='trial')
+        # plt.plot(hist_x, kde_out(hist_x), color='red', label='trial')
         
         plt.xlabel('Function Value')
         plt.ylabel('Probability Density')
@@ -57,6 +56,16 @@ class Montecarlo():
                     # xy=(0, 1.01), xycoords='axes fraction',fontsize=10)
         plt.legend()
         plt.show()
+
+    def uniform_uq(self, bounds, n_samples, n_bins):
+        #This assums each dimensions is centered around a nominal value and the bounds are uncertanties.
+        uniforms = []
+        for bound in bounds:
+            uniforms.append(Uniform(bound))
+        self.compute_output_distribution(n_samples, input_distributions=uniforms)
+        self.plot_output_distribution(n_bins)
+
+    
 
 
         
