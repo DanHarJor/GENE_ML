@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import numpy as np
+import posixpath
 from collections.abc import Iterator
 import re
 from ..tools import sec_to_time_format
@@ -39,10 +40,10 @@ class GENErunner():
         if wallseconds > self.max_wallseconds: self.max_wallseconds = wallseconds
         print(f"THE ESTIMATED WALLTIME FOR RUN {run_id} is {sec_to_time_format(wallseconds)}, dd-hh-mm-ss TO RUN {n_samples} SAMPLES")
         
-        remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
-        remote_param_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'parameters')
-        remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
-        remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
+        remote_problem_dir = posixpath.join(self.remote_run_dir, f'auto_prob_{run_id}') 
+        remote_param_path = posixpath.join(self.remote_run_dir, f'auto_prob_{run_id}', 'parameters')
+        remote_sbatch_path = posixpath.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
+        remote_continue_path = posixpath.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
     
         try:
             print(f"CHECKING IF PROBLEM DIRECTORY EXISTS?")
@@ -53,8 +54,27 @@ class GENErunner():
             _, stdout, _ = self.config.paramiko_ssh_client.exec_command(command)
             print('RESULT FROM COMMAND:',stdout.read())
 
+        def convert_to_unix_line_breaks(file_path):
+            with self.parser.open_file(file_path, 'r') as file:
+                lines = file.readlines()
+                #content = file.read()
+            
+            content = "\n".join(lines)
+            
+            with self.parser.open_file(file_path, 'w') as file:
+                file.write(content)
+                
+            
+            """
+            # Replace DOS line breaks with Unix line breaks
+            content = content.replace('\r\n', '\n')
+            content = content.replace('^M$', '\n')
+            
+            with self.parser.open_file(file_path, 'w', encoding='utf-8') as file:
+                file.write(content)
+            """
         self.parser.base_to_remote(remote_param_path, remote_sbatch_path)
-
+        
         print(f"ALTERING THE PARAMETERS FILE IN THE REMOTE PROBLEM DIRECTORY")
         self.parser.alter_parameters_file(remote_param_path, group_var=["general","timelim"], value=self.single_run_timelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
         
@@ -63,11 +83,24 @@ class GENErunner():
         # self.parser.set_simtimelim(self.single_run_simtimelim, parameters_path=remote_param_path)
         self.parser.alter_parameters_file(remote_param_path, group_var=["general","simtimelim"], value=self.single_run_simtimelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
         
+        
         print('SBATCH')
         print(self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds))
 
         print(f'PARSING SAMPLES TO INPUT FILE at:',remote_param_path)
         print(self.parser.write_input_file(samples, remote_param_path, remote_save_dir=os.path.join(self.remote_save_dir, run_id)))
+
+        convert_to_unix_line_breaks(remote_sbatch_path)
+        convert_to_unix_line_breaks(remote_param_path)
+        convert_to_unix_line_breaks(remote_continue_path)
+        
+        print('\n**********************PRINTIG SBATCH IN REMOTE DIR')
+        print('remote sbatch path: ',remote_sbatch_path)
+        with self.parser.open_file(remote_sbatch_path, 'r') as file:
+            for line in file:
+                print(repr(line))
+        
+        
 
     def code_run(self, samples, run_id):
         self.pre_run_check(samples, run_id)
