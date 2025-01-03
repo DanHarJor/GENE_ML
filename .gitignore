@@ -5,4 +5,6 @@ condarc_safe
 *ignore*
 Dockerfile
 *venv/
+.gitmodules
+IFS_scripts/
 

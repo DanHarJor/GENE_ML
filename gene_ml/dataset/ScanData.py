@@ -16,6 +16,11 @@ except:
     except:
         raise ImportError 
 
+sys.path.append(os.path.join('GENE_ML','IFS_scripts'))
+from GENE_ML.IFS_scripts.geomWrapper import calc_kperp_omd, init_read_geometry_file
+from GENE_ML.IFS_scripts.parIOWrapper import init_read_parameters_file
+    
+
 class ScanData(DataSet):
     def __init__(self, name, parser, config, sampler=None, host=None, remote_save_dir=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
         '''
@@ -417,7 +422,10 @@ class ScanData2(DataSet):
     def fingerprints_categorisation(self, scanfiles_path):
         # this method includes the fingerprints ratios and also includes the electron EM flux vs ES flux
         diff_df = self.load_diffusivities(scanfiles_path)
+        print('DEBUG',diff_df.columns)
         heat_diff_i = diff_df['heat_diff_ion'].to_numpy()
+        print('DEBUG',diff_df.columns)
+        
         heat_diff_e = diff_df['heat_diff_electron'].to_numpy()
         ratio_iheat_eheat = heat_diff_i / heat_diff_e
 
@@ -501,6 +509,31 @@ class ScanData2(DataSet):
         categorisation[mask_etg] = 'ETG'
 
         return pd.DataFrame({'categorisation':categorisation}) 
+    
+    
+    def kperp(self, scanfiles_path):
+        # only set up to work for local files
+        with self.parser.open_file(os.path.join(scanfiles_path, 'scan.log'), 'r') as file:
+            line_count = sum(1 for line in file)
+        # number_of_runs = line_count-1#same as number of lines in scan.log
+        os.chdir(scanfiles_path)
+        suffix_s = ['_'+str(number).zfill(4) for number in range(1,line_count)]
+
+        avg_kperp_squared_s = []
+        for suffix in suffix_s:
+            pars = init_read_parameters_file(suffix)
+            geom_type, geom_pars, geom_coeff = init_read_geometry_file(suffix,pars)
+
+            kperp, omd_curv, omd_gradB = calc_kperp_omd(geom_type,geom_coeff,pars,False,False)
+            
+            avg_kperp_squared = np.mean(np.array(kperp)**2)
+            avg_kperp_squared_s.append(avg_kperp_squared)
+        
+        kperp_df = pd.DataFrame({'avg_kperp_squared':avg_kperp_squared_s})
+        return kperp_df
+
+        
+    
 
     def load_from_file(self, scanlog_path, geneerr_path, scanfiles_dir, nrg_prefix=''):    
         scanlog_df = self.parser.read_scanlog(scanlog_path)
@@ -514,9 +547,13 @@ class ScanData2(DataSet):
             diff_df = self.load_diffusivities(scanfiles_dir)
             fluxes_df = self.parser.read_fluxes(scanfiles_dir)
             categorise_df = self.final_categorisation(scanfiles_dir)
-            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df], axis=1)
-            print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
-            print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
+            kperp_df = self.kperp(scanfiles_dir)            
+            mixing_length_df = pd.DataFrame()
+            mixing_length_df['mixing_length'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_squared']
+
+            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df, kperp_df, mixing_length_df], axis=1)
+            # print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
+            # print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
 
         else: rest_df = pd.DataFrame({'REST':np.repeat('rest', len(scanlog_df))})
 
@@ -545,6 +582,7 @@ class ScanData2(DataSet):
         for scanfiles_dir in latest_scanfile_dirs:
             scanlog_path = os.path.join(scanfiles_dir,f'{self.scan_name}scan.log')
             generr_path = os.path.join(scanfiles_dir,f'{self.scan_name}geneerr.log')
+            print('DEBUG2',scanfiles_dir)
             scanlog_df, rest_df = self.load_from_file(scanlog_path, generr_path, scanfiles_dir=scanfiles_dir)
             scanlog_dfs.append(scanlog_df)
             rest_dfs.append(rest_df)
