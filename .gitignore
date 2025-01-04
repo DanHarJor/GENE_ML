@@ -5,5 +5,3 @@ condarc_safe
 *ignore*
 Dockerfile
 *venv/
-.gitmodules
-
