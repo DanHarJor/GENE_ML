@@ -6,5 +6,4 @@ condarc_safe
 Dockerfile
 *venv/
 .gitmodules
-IFS_scripts/
 
