@@ -8,6 +8,7 @@ from copy import deepcopy
 import pandas as pd
 import re
 import time
+import shutil
 from ..tools import sec_to_time_format 
 
 from collections import deque
@@ -199,10 +200,13 @@ class GENE_scan_parser():
     #     return simtimelim_gene
 
     def base_to_remote(self, remote_param_path, remote_sbatch_path):
-        print('PLACING BASE PARAMETERS AND SBATCH TO REMOTE PROBLEM DIRECTORY')
-        self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
-        self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
-
+        if config.local:
+            shutil.copy(self.base_params_path, remote_param_path)
+            shutil.copy(self.base_sbatch_path, remote_sbatch_path)
+        else:
+            print('PLACING BASE PARAMETERS AND SBATCH TO REMOTE PROBLEM DIRECTORY')
+            self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
+            self.config.paramiko_sftp_client.put(self.base_sbatch_path, remote_sbatch_path)        
     def alter_parameters_file(self, parameters_path, group_var, value):
         group, var = group_var
         group_ord = re.findall('[0-9]', group)

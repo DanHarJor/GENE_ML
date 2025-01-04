@@ -43,15 +43,23 @@ class GENErunner():
         remote_param_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'parameters')
         remote_sbatch_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'submit.cmd')
         remote_continue_path = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}', 'continue.cmd')
-    
-        try:
-            print(f"CHECKING IF PROBLEM DIRECTORY EXISTS?")
-            directory_details = self.config.paramiko_sftp_client.stat(remote_problem_dir)
-        except FileNotFoundError:
-            print('REMOTE PROBLEM DIRECTORY DOES NOT EXIST, CREATING IT NOW:', remote_problem_dir)
-            command = f'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit'
-            _, stdout, _ = self.config.paramiko_ssh_client.exec_command(command)
-            print('RESULT FROM COMMAND:',stdout.read())
+
+        print(f"CHECKING IF PROBLEM DIRECTORY EXISTS")
+        problem_command = f'cd {self.remote_run_dir} && ./newprob && mv prob01 auto_prob_{run_id}; exit'
+        if self.config.local:
+            if not os.path.exists(remote_problem_dir):
+                print("MAKING PROBLEM DIRECTORY")
+                os.system(problem_command)
+            else: print("PROBLEM DIRECTORY EXISTS")
+        
+        else:
+            try:
+                directory_details = self.config.paramiko_sftp_client.stat(remote_problem_dir)
+
+            except FileNotFoundError:
+                print('REMOTE PROBLEM DIRECTORY DOES NOT EXIST, CREATING IT NOW:', remote_problem_dir)
+                _, stdout, _ = self.config.paramiko_ssh_client.exec_command(problem_command)
+                print('RESULT FROM COMMAND:',stdout.read())
 
         self.parser.base_to_remote(remote_param_path, remote_sbatch_path)
 
@@ -83,23 +91,27 @@ class GENErunner():
         remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
 
         run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
-        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
-        out = stdout.read().decode('utf8')
-        err = stderr.read().decode('utf8')
-        print('OUT:', out, 'ERROR?:', err)
-        
+        if config.local:
+            result = subprocess.run(run_command, shell=True, capture_output=True, text=True)
+            out = result.stdout
+            err = result.stderr
+        else:
+            stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
+            out = stdout.read().decode('utf8')
+            err = stderr.read().decode('utf8')
+        print('OUT:', out, 'ERROR?:', err)        
         sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
         print('OUT:', out, 'ERROR?:', err)
         print('SUBMITTED SBATCH ID:', sbatch_id)
         return sbatch_id
     
-    def kill_runs(self, sbatch_ids):
-        print('\n KILLING SBATCH IDS',sbatch_ids)
-        os.system(f"ssh {self.host} 'scancel {' '.join(sbatch_ids)}'")
-        command = f"ssh {self.host} 'squeue --me'"
-        queue = subprocess.check_output(command, shell=True, text=True)
-        print('SLURM QUEUE AFTER KILL',queue)
-        print('\n')
+    # def kill_runs(self, sbatch_ids):
+    #     print('\n KILLING SBATCH IDS',sbatch_ids)
+    #     os.system(f"ssh {self.host} 'scancel {' '.join(sbatch_ids)}'")
+    #     command = f"ssh {self.host} 'squeue --me'"
+    #     queue = subprocess.check_output(command, shell=True, text=True)
+    #     print('SLURM QUEUE AFTER KILL',queue)
+    #     print('\n')
 
     def check_complete(self, run_ids):
         statuses = self.check_gene_status(run_ids)
@@ -121,13 +133,19 @@ class GENErunner():
         print('CHECK GENE STATUS:',status)
         return status
     
+
     # Checks to see if the slurm batch jobs are still in the queue. 
     def check_finished(self, sbatch_ids):
         print('\nCHECKING IF JOBS FINISHED:', sbatch_ids)
         #To check that certain sbatch_id's are no longer in the squeue
         command = f"squeue --me"
-        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
-        out = stdout.read().decode('utf8')
+        if config.local:
+            result = subprocess.run(run_command, shell=True, capture_output=True, text=True)
+            out = result.stdout
+            err = result.stderr
+        else:
+            stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
+            out = stdout.read().decode('utf8')
         finished = np.array([not s_id in out for s_id in sbatch_ids])
         if all(finished):
             print('NONE OF THE INPUTED SBATCH IDs ARE RUNNING')
@@ -190,7 +208,7 @@ class GENErunner():
             #     incomplete.append(run_id)
         # return incomplete
 
-        
+    # Nothing after here has been adapted for local, potentially not paramiko either.    
     
     def delete(self, run_ids):
         for run_id in run_ids:
@@ -402,14 +420,14 @@ class GENErunner():
             latest.append(os.path.join(remote_save,latest_scanfile))
         return latest
 
-    def clean(self):
-        '''
-            Removes any prob0* directories created by ./newprob and the auto_prob_* directories created for the specific run.
-        '''
-        print('CLEANING RUN DIR OF RUNER CREATED DIRECTORIES')
-        os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && rm -r auto_prob_* prob0*'")
+    # def clean(self):
+    #     '''
+    #         Removes any prob0* directories created by ./newprob and the auto_prob_* directories created for the specific run.
+    #     '''
+    #     print('CLEANING RUN DIR OF RUNER CREATED DIRECTORIES')
+    #     os.system(f"ssh {self.host} 'cd {self.remote_run_dir} && rm -r auto_prob_* prob0*'")
 
-        os.system('rm temp/*')
+    #     os.system('rm temp/*')
 
         
 
