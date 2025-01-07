@@ -15,7 +15,7 @@ class GENErunner():
         self.remote_run_dir = config.remote_run_dir
         self.ssh_path = f"{self.host}:{self.remote_run_dir}"
         self.time_model = time_model
-        self.local_run_files_dir = config.local_run_files_dir
+        #self.local_run_files_dir = config.local_run_files_dir
         self.max_wallseconds = 0
         self.config = config
 
@@ -83,22 +83,31 @@ class GENErunner():
         print('\nCODE RUN')
         # make results directory
         remote_save_dir_run_id = os.path.join(self.remote_save_dir, run_id)
+        mkdir_command = f'mkdir -p {remote_save_dir_run_id}'
+
         print('MAKING PARSER REMOTE SAVE DIRECTORY,', remote_save_dir_run_id)
-        command = f'mkdir -p {remote_save_dir_run_id}'
-        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(command)
-        print('RESULT OF MAKING REMOTE SAVE DIRECTORY,', stdout.read(), stderr.read())
-
+        
         remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
-
         run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
-        if config.local:
+        if self.config.local:
+            mkdir_result = subprocess.run(mkdir_command, shell=True, capture_output=True, text=True)
+            mkdir_out = mkdir_result.stdout
+            mkdir_err = mkdir_result.stderr
+
             result = subprocess.run(run_command, shell=True, capture_output=True, text=True)
             out = result.stdout
             err = result.stderr
         else:
+            mkdir_stdin, mkdir_stdout, mkdir_stderr = self.config.paramiko_ssh_client.exec_command(mkdir_command)
+            mkdir_out = mkdir_stdout.read().decode('utf8')
+            mkdir_err = mkdir_stderr.read().decode('utf8')
+
             stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(run_command)
             out = stdout.read().decode('utf8')
             err = stderr.read().decode('utf8')
+
+        print('RESULT OF MAKING REMOTE SAVE DIRECTORY,', mkdir_out, mkdir_err)
+
         print('OUT:', out, 'ERROR?:', err)        
         sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
         print('OUT:', out, 'ERROR?:', err)
@@ -139,8 +148,8 @@ class GENErunner():
         print('\nCHECKING IF JOBS FINISHED:', sbatch_ids)
         #To check that certain sbatch_id's are no longer in the squeue
         command = f"squeue --me"
-        if config.local:
-            result = subprocess.run(run_command, shell=True, capture_output=True, text=True)
+        if self.config.local:
+            result = subprocess.run(command, shell=True, capture_output=True, text=True)
             out = result.stdout
             err = result.stderr
         else:

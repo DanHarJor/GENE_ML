@@ -200,7 +200,7 @@ class GENE_scan_parser():
     #     return simtimelim_gene
 
     def base_to_remote(self, remote_param_path, remote_sbatch_path):
-        if config.local:
+        if self.config.local:
             shutil.copy(self.base_params_path, remote_param_path)
             shutil.copy(self.base_sbatch_path, remote_sbatch_path)
         else:
@@ -394,15 +394,26 @@ class GENE_scan_parser():
             for line in parameters_file:
                 if 'name' in line:
                     names.append(line.split('=')[-1].strip().strip("'")) 
-        names = [s.replace('i', 'ion').replace('e', 'electron') for s in names]
+        #names = [s.replace('i', 'ion').replace('e', 'electron') for s in names]
         return names
     
     def read_fluxes(self, scanfiles_dir, nrg_prefix='', nspecies=2):
         print('READING FLUXES')
+        with self.open_file(os.path.join(scanfiles_dir, 'scan.log'), 'r') as file:
+            line_count = sum(1 for line in file)
+        all_suffix_s = [str(number).zfill(4) for number in range(1,line_count)]
+
+        
         species_names = self.read_species_names(parameters_path=os.path.join(scanfiles_dir,'parameters'))
         files = self.listdir(scanfiles_dir)
         nrg_files = np.sort(np.array([f for f in files if nrg_prefix+'nrg' in f]))
-        
+        pattern = r'\d{4}'
+        matched_strings = []
+        for filename in nrg_files:
+            matches = re.findall(pattern, filename)
+            matched_strings.extend(matches)
+        suffix_s = np.unique(matched_strings)
+
         # columns = []
         # for i in range(1,nspecies+1):
         #     columns += [f'particle_electrostatic_{i}', f'particle_electromagnetic_{i}', f'heat_electrostatic_{i}', f'heat_electromagnetic_{i}']
@@ -417,21 +428,30 @@ class GENE_scan_parser():
         #     with open(file_path, 'rb') as file:
         #         return deque(file, maxlen=num_lines)
 
-        for index, nrg_f in enumerate(nrg_files):
-            nrg_path = os.path.join(scanfiles_dir,nrg_f)
-            with self.open_file(nrg_path, 'r') as nrg_file:
-                lines = deque(nrg_file, maxlen=nspecies)
-                #lines = nrg_file.readlines()[-nspecies:]
-            species = []
-            for species_name, l in zip(species_names, lines):
-                values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
-                fluxes = values[4:8]
-                fluxes_df = pd.DataFrame({f'particle_electrostatic_{species_name}':float(fluxes[0]), f'particle_electromagnetic_{species_name}':float(fluxes[1]), f'heat_electrostatic_{species_name}':float(fluxes[2]), f'heat_electromagnetic_{species_name}':float(fluxes[3])},index = [index])
-                species.append(fluxes_df)
-            all_species = pd.concat(species, axis=1)
-            df = pd.concat([df,all_species], axis=0)
-            # The species are in the same order as in the gene_parameters file.
-        
+        for index, suffix in enumerate(all_suffix_s):
+            if suffix in suffix_s: #This means there is a file with the suffix and GENE completed for this run
+                argw = list(suffix_s).index(suffix)
+                nrg_path = os.path.join(scanfiles_dir,nrg_files[argw])
+                with self.open_file(nrg_path, 'r') as nrg_file:
+                    lines = deque(nrg_file, maxlen=nspecies)
+                    #lines = nrg_file.readlines()[-nspecies:]
+                species = []
+                for species_name, l in zip(species_names, lines):
+                    values = re.findall("(-?\d+\.\d+E[+-]?\d+)", l)#np.array(l.split('  ')"
+                    fluxes = values[4:8]
+                    fluxes_df = pd.DataFrame({f'particle_electrostatic_{species_name}':float(fluxes[0]), f'particle_electromagnetic_{species_name}':float(fluxes[1]), f'heat_electrostatic_{species_name}':float(fluxes[2]), f'heat_electromagnetic_{species_name}':float(fluxes[3])},index = [index])
+                    species.append(fluxes_df)
+                all_species = pd.concat(species, axis=1)
+                df = pd.concat([df,all_species], axis=0)
+                # The species are in the same order as in the gene_parameters file.
+            else: # GENE likely did not complete for this run as there is no file. SO we just put in nan.
+                species = []
+                for species_name in species_names:
+                    fluxes_df = pd.DataFrame({f'particle_electrostatic_{species_name}':np.nan, f'particle_electromagnetic_{species_name}':np.nan, f'heat_electrostatic_{species_name}':np.nan, f'heat_electromagnetic_{species_name}':np.nan},index = [index])
+                    species.append(fluxes_df)
+                all_species = pd.concat(species, axis=1)
+                df = pd.concat([df,all_species], axis=0)
+                
         return df
     
     def read_parameters_dict(self, parameters_path):

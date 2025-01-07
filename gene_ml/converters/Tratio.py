@@ -34,7 +34,8 @@ class Tratio():
         
         # Convert to un-normalised gradient
         grad_Te = -samples[('_grp_species_1','omt')] * (Te / Lref)
-
+        
+        # Compute ion temperature gradient based on electron temperature gradient and the Ti/Te ratio. 
         Te_0 = Te
         Te_1 = grad_Te + Te_0
         Ti_0 = Ti

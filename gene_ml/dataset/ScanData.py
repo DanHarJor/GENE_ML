@@ -387,34 +387,56 @@ class ScanData2(DataSet):
         parameters_file_names = np.array([f for f in file_names if 'parameters_' in f and not 'eff' in f])
         parameters_file_names = np.sort(parameters_file_names)
         parameters_paths = [os.path.join(scanfiles_path, parameters_file_name) for parameters_file_name in parameters_file_names]
+        
+        with self.parser.open_file(os.path.join(scanfiles_path, 'scan.log'), 'r') as file:
+            line_count = sum(1 for line in file)
+        all_suffix_s = [str(number).zfill(4) for number in range(1,line_count)]
+        pattern = r'\d{4}'
+        matched_strings = []
+        for filename in parameters_file_names:
+            matches = re.findall(pattern, filename)
+            matched_strings.extend(matches)
+        suffix_s = np.unique(matched_strings)
+
+
         fluxes_df = self.parser.read_fluxes(scanfiles_path)
         df = pd.DataFrame()
-        for i, parameters_path in enumerate(parameters_paths):
-            print(parameters_path)
-            parameters_dict = self.parser.read_parameters_dict(parameters_path)
-            nref = parameters_dict['units']['nref']
-            Tref = parameters_dict['units']['tref']
-            Lref = parameters_dict['units']['lref']
-            keys = list(parameters_dict.keys())
-            species = [s for s in keys if 'species' in s]
+        species_names = self.parser.read_species_names(os.path.join(scanfiles_path, 'parameters'))
+                
+        # for i, parameters_path in enumerate(parameters_paths):
+        for i, suffix in enumerate(all_suffix_s):
             species_df = []
-            species_names = self.parser.read_species_names(parameters_path)
-            for name, spec in zip(species_names,species):
-                particle_flux = fluxes_df[f'particle_electrostatic_{name}'].iloc[i] + fluxes_df[f'particle_electromagnetic_{name}'].iloc[i]
-                omn = parameters_dict[spec]['omn']
-                n = nref * parameters_dict[spec]['dens']
-                grad_n = -(n/Lref) * omn
-                particle_diff = - particle_flux / grad_n
-                
-                heat_flux = fluxes_df[f'heat_electrostatic_{name}'].iloc[i] + fluxes_df[f'heat_electromagnetic_{name}'].iloc[i]
-                omt = parameters_dict[spec]['omt'] 
-                T = parameters_dict[spec]['temp'] * Tref
-                grad_T = omt * -(T/Lref)
-                
-                heat_diff = -(heat_flux - (3/2)*T*particle_flux)/(n * grad_T)
-                
-                diff_df = pd.DataFrame({f'particle_diff_{name}':particle_diff, f'heat_diff_{name}':heat_diff, f'particle_flux_{name}':particle_flux, f'heat_flux_{name}':heat_flux}, index=[i])
-                species_df.append(diff_df)
+            if suffix in suffix_s:
+                argw = list(suffix_s).index(suffix)
+                parameters_path = parameters_paths[argw]
+                print(parameters_path)
+                parameters_dict = self.parser.read_parameters_dict(parameters_path)
+                nref = parameters_dict['units']['nref']
+                Tref = parameters_dict['units']['tref']
+                Lref = parameters_dict['units']['lref']
+                keys = list(parameters_dict.keys())
+                species = [s for s in keys if 'species' in s]
+                for name, spec in zip(species_names,species):
+                    particle_flux = fluxes_df[f'particle_electrostatic_{name}'].iloc[i] + fluxes_df[f'particle_electromagnetic_{name}'].iloc[i]
+                    omn = parameters_dict[spec]['omn']
+                    n = nref * parameters_dict[spec]['dens']
+                    grad_n = -(n/Lref) * omn
+                    particle_diff = - particle_flux / grad_n
+                    
+                    heat_flux = fluxes_df[f'heat_electrostatic_{name}'].iloc[i] + fluxes_df[f'heat_electromagnetic_{name}'].iloc[i]
+                    omt = parameters_dict[spec]['omt'] 
+                    T = parameters_dict[spec]['temp'] * Tref
+                    grad_T = omt * -(T/Lref)
+                    
+                    heat_diff = -(heat_flux - (3/2)*T*particle_flux)/(n * grad_T)
+                    
+                    diff_df = pd.DataFrame({f'particle_diff_{name}':particle_diff, f'heat_diff_{name}':heat_diff, f'particle_flux_{name}':particle_flux, f'heat_flux_{name}':heat_flux}, index=[i])
+                    species_df.append(diff_df)
+            else:
+                for name in species_names:
+                    diff_df = pd.DataFrame({f'particle_diff_{name}':np.nan, f'heat_diff_{name}':np.nan, f'particle_flux_{name}':np.nan, f'heat_flux_{name}':np.nan}, index=[i])
+                    species_df.append(diff_df)
+
             all_species = pd.concat(species_df, axis=1)
             df = pd.concat([df,all_species], axis=0)
         return df
@@ -422,14 +444,12 @@ class ScanData2(DataSet):
     def fingerprints_categorisation(self, scanfiles_path):
         # this method includes the fingerprints ratios and also includes the electron EM flux vs ES flux
         diff_df = self.load_diffusivities(scanfiles_path)
-        print('DEBUG',diff_df.columns)
-        heat_diff_i = diff_df['heat_diff_ion'].to_numpy()
-        print('DEBUG',diff_df.columns)
+        heat_diff_i = diff_df['heat_diff_Ions'].to_numpy()
         
-        heat_diff_e = diff_df['heat_diff_electron'].to_numpy()
+        heat_diff_e = diff_df['heat_diff_Electrons'].to_numpy()
         ratio_iheat_eheat = heat_diff_i / heat_diff_e
 
-        particle_diff_e = diff_df['particle_diff_electron'].to_numpy()
+        particle_diff_e = diff_df['particle_diff_Electrons'].to_numpy()
         ratio_eparticle_eheat = particle_diff_e / heat_diff_e
 
         ratio_eparticle_heat = particle_diff_e / (heat_diff_e + heat_diff_i)
@@ -478,7 +498,7 @@ class ScanData2(DataSet):
     def em_categorisation(self, scanfiles_path):
         # MTM has a lot of electromagnetic flux
         fluxes_df = self.parser.read_fluxes(scanfiles_path)
-        ratio = fluxes_df['heat_electromagnetic_electron'] / fluxes_df['heat_electrostatic_electron']
+        ratio = fluxes_df['heat_electromagnetic_Electrons'] / fluxes_df['heat_electrostatic_Electrons']
         mask_MTM = ratio > 0.5
         categorisation = np.where(mask_MTM, 'yes_MTM', 'no_MTM')
         em_cat_df = pd.DataFrame(categorisation, columns=['em_categorisation'])
@@ -513,22 +533,33 @@ class ScanData2(DataSet):
     
     def kperp(self, scanfiles_path):
         # only set up to work for local files
+
+        files = os.listdir(scanfiles_path)
+        pattern = r'\d{4}'
+        matched_strings = []
+        for filename in files:
+            matches = re.findall(pattern, filename)
+            matched_strings.extend(matches)
+        suffix_s = np.unique(matched_strings)
+
         with self.parser.open_file(os.path.join(scanfiles_path, 'scan.log'), 'r') as file:
             line_count = sum(1 for line in file)
         # number_of_runs = line_count-1#same as number of lines in scan.log
         os.chdir(scanfiles_path)
-        suffix_s = ['_'+str(number).zfill(4) for number in range(1,line_count)]
+        all_suffix_s = [str(number).zfill(4) for number in range(1,line_count)]
 
         avg_kperp_squared_s = []
-        for suffix in suffix_s:
-            pars = init_read_parameters_file(suffix)
-            geom_type, geom_pars, geom_coeff = init_read_geometry_file(suffix,pars)
-
-            kperp, omd_curv, omd_gradB = calc_kperp_omd(geom_type,geom_coeff,pars,False,False)
-            
-            avg_kperp_squared = np.mean(np.array(kperp)**2)
-            avg_kperp_squared_s.append(avg_kperp_squared)
-        
+        for suffix in all_suffix_s:
+            if suffix in suffix_s:
+                print('DEBUG EXTRA 2', suffix)
+                pars = init_read_parameters_file('_'+suffix)
+                geom_type, geom_pars, geom_coeff = init_read_geometry_file('_'+suffix,pars)
+                kperp, omd_curv, omd_gradB = calc_kperp_omd(geom_type,geom_coeff,pars,False,False)
+                avg_kperp_squared = np.mean(np.array(kperp)**2)
+                avg_kperp_squared_s.append(avg_kperp_squared)
+                print('DEBUG EXTRA 2, avg_kperpsq', avg_kperp_squared)
+            else:
+                avg_kperp_squared_s.append(np.nan)
         kperp_df = pd.DataFrame({'avg_kperp_squared':avg_kperp_squared_s})
         return kperp_df
 
@@ -549,12 +580,11 @@ class ScanData2(DataSet):
             categorise_df = self.final_categorisation(scanfiles_dir)
             kperp_df = self.kperp(scanfiles_dir)            
             mixing_length_df = pd.DataFrame()
+            concat_test = pd.concat([scanlog_df['growthrate'],kperp_df['avg_kperp_squared']], axis=1)
             mixing_length_df['mixing_length'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_squared']
-
-            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df, kperp_df, mixing_length_df], axis=1)
-            # print('DEBUG, time_df, reasons_df, rest, scanlog',len(time_df),len(reasons_df), len(rest_df), len(scanlog_df))
-            # print('DEBUG',f'number of runs detected in the scan.log ({len(scanlog_df)}) --- geneerr.log ({len(rest_df)},{len(time_df)}, {len(reasons_df)}, {len(reasons)}).\n', scanlog_path, geneerr_path)
-
+            #print(time_df.index.duplicated().any(), reasons_df.index.duplicated().any(), fingerprints_df.index.duplicated().any(), em_cat_df.index.duplicated().any(), diff_df.index.duplicated().any(), fluxes_df.index.duplicated().any(), categorise_df.index.duplicated().any(), kperp_df.index.duplicated().any(), mixing_length_df.index.duplicated().any())
+            rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df, kperp_df, mixing_length_df], axis=1) #
+            
         else: rest_df = pd.DataFrame({'REST':np.repeat('rest', len(scanlog_df))})
 
 
@@ -582,7 +612,6 @@ class ScanData2(DataSet):
         for scanfiles_dir in latest_scanfile_dirs:
             scanlog_path = os.path.join(scanfiles_dir,f'{self.scan_name}scan.log')
             generr_path = os.path.join(scanfiles_dir,f'{self.scan_name}geneerr.log')
-            print('DEBUG2',scanfiles_dir)
             scanlog_df, rest_df = self.load_from_file(scanlog_path, generr_path, scanfiles_dir=scanfiles_dir)
             scanlog_dfs.append(scanlog_df)
             rest_dfs.append(rest_df)

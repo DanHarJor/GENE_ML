@@ -62,7 +62,7 @@ class MaxOfManyGaussians():
                     Zmax = 0
         return Zmax
     
-    def plot_slices(self, grid_size=200, nominals=None):
+    def plot_slices(self, grid_size=200, nominals=None, not_vectorised=False):
         print('PLOT SLICES')
         if type(nominals) == type(None):
             nominals = [np.mean(b) for b in self.bounds]
@@ -72,7 +72,13 @@ class MaxOfManyGaussians():
             print('d', p.shape)
             x = np.linspace(b[0],b[1], grid_size)
             p[:,i] = x
-            y_true = self.evaluate(p)
+            if not_vectorised:
+                y_true = []
+                for pi in p:
+                    print('DEBUG',pi)
+                    y_true.append(self.evaluate(pi))
+            else:
+                y_true = self.evaluate(p)
             fig = plt.figure()
             plt.plot(x,y_true, color ='black', label='True Function')
             plt.legend()
