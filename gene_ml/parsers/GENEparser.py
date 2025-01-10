@@ -99,7 +99,7 @@ import sys
 #         raise NotImplementedError
     
 class GENE_scan_parser(): 
-    def __init__(self, config):
+    def __init__(self, config=None):
         """
         Generates the base f90nml namelist from the GENE parameters file at base_params_path.
 
@@ -113,15 +113,16 @@ class GENE_scan_parser():
         -------
             Nothing 
         """
-        self.config = config
-        # self.save_dir = config.save_dir
-        self.base_params_path = config.base_params_path
-        self.base_namelist = f90nml.read(self.base_params_path)
-        self.base_sbatch_path = config.base_sbatch_path
-        if str(type(self.base_params_path)) == "<class 'paramiko.sftp_file.SFTPFile'>":
-            self.remote_base = True
-        else:
-            self.remote_base = False
+        if type(config) != type(None):
+            self.config = config
+            # self.save_dir = config.save_dir
+            self.base_params_path = config.base_params_path
+            self.base_namelist = f90nml.read(self.base_params_path)
+            self.base_sbatch_path = config.base_sbatch_path
+            # if str(type(self.base_params_path)) == "<class 'paramiko.sftp_file.SFTPFile'>":
+            #     self.remote_base = True
+            # else:
+            #     self.remote_base = False
     # def alter_base(self, group_var, value):
     #     #currently only works for variables that only appear in one group, not omn as it is in each species group
     #     #var example var="general_timelim", group_variable for fortran parameters file.
@@ -397,6 +398,7 @@ class GENE_scan_parser():
         #names = [s.replace('i', 'ion').replace('e', 'electron') for s in names]
         return names
     
+
     def read_fluxes(self, scanfiles_dir, nrg_prefix='', nspecies=2):
         print('READING FLUXES')
         with self.open_file(os.path.join(scanfiles_dir, 'scan.log'), 'r') as file:
@@ -603,19 +605,16 @@ class GENE_scan_parser():
     #     return scan_status
     
     def open_file(self, file_path, mode='r'):
-        if self.config.local_username in file_path:
-            try: 
-                file = open(file_path, mode)
-            except:
-                # print('using paramiko')
-                file = self.config.paramiko_sftp_client.open(file_path, mode)
-        else:
-            try:
-                # print('using paramiko 2')
-                file = self.config.paramiko_sftp_client.open(file_path, mode)
-            except:
-                file = open(file_path, mode)
+        try: 
+            file = open(file_path, mode)
+        except:
+            # print('using paramiko')
+            file = self.config.paramiko_sftp_client.open(file_path, mode)
         return file
+    
+    
+                
+
 
     
 if __name__ == '__main__':

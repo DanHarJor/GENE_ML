@@ -67,6 +67,11 @@ class MaxOfManyGaussians():
         if type(nominals) == type(None):
             nominals = [np.mean(b) for b in self.bounds]
         
+        h=3
+        w=3
+        r=1
+        c=len(self.bounds)
+        fig, AX = plt.subplots(r,c,figsize=(w*c, h*r), dpi = 200)
         for i, b in enumerate(self.bounds):
             p = np.stack([nominals for i in range(grid_size)])
             print('d', p.shape)
@@ -79,11 +84,11 @@ class MaxOfManyGaussians():
                     y_true.append(self.evaluate(pi))
             else:
                 y_true = self.evaluate(p)
-            fig = plt.figure()
-            plt.plot(x,y_true, color ='black', label='True Function')
-            plt.legend()
-            plt.xlabel(f'dimension {i}')
-            plt.ylabel('function value')
+            AX[i].plot(x,y_true, color ='black', label='True Function')
+            AX[i].legend()
+            AX[i].set_xlabel(f'dimension {i}')
+            AX[i].set_ylabel('function value')
+            fig.tight_layout()
             fig.show()
 
     def plot_matrix_contour(self):
