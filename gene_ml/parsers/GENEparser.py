@@ -97,8 +97,8 @@ import sys
 #     # what is returned here is returned to the runner for a single code run, which goes though the base executor to get to the future 
 #     def read_scanlog(self, save_dir: str):
 #         raise NotImplementedError
-    
-class GENE_scan_parser(): 
+from .parser_base import Parser
+class GENE_scan_parser(Parser): 
     def __init__(self, config=None):
         """
         Generates the base f90nml namelist from the GENE parameters file at base_params_path.

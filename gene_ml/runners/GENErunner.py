@@ -63,6 +63,13 @@ class GENErunner():
 
         self.parser.base_to_remote(remote_param_path, remote_sbatch_path)
 
+        
+        print('SBATCH')
+        self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds)
+
+        print(f'PARSING SAMPLES TO INPUT FILE at:',remote_param_path)
+        self.parser.write_input_file(samples, remote_param_path, remote_save_dir=os.path.join(self.remote_save_dir, run_id))
+
         print(f"ALTERING THE PARAMETERS FILE IN THE REMOTE PROBLEM DIRECTORY")
         self.parser.alter_parameters_file(remote_param_path, group_var=["general","timelim"], value=self.single_run_timelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
         
@@ -71,11 +78,11 @@ class GENErunner():
         # self.parser.set_simtimelim(self.single_run_simtimelim, parameters_path=remote_param_path)
         self.parser.alter_parameters_file(remote_param_path, group_var=["general","simtimelim"], value=self.single_run_simtimelim) # If using time_model this should be set with the time model in the sampler and put in the scan format on the parameters file.
         
-        print('SBATCH')
-        print(self.parser.write_sbatch(remote_sbatch_path, remote_continue_path, wallseconds))
+        print('PARAMETERS IN RUN DIR:')
+        self.parser.print_file(remote_param_path)
 
-        print(f'PARSING SAMPLES TO INPUT FILE at:',remote_param_path)
-        print(self.parser.write_input_file(samples, remote_param_path, remote_save_dir=os.path.join(self.remote_save_dir, run_id)))
+        print('SBATCH IN RUN DIR:')
+        self.parser.print_file(remote_sbatch_path)
 
     def code_run(self, samples, run_id):
         self.pre_run_check(samples, run_id)

@@ -1,8 +1,8 @@
 import numpy as np
 from .parser_base import Parser
 class ParserTimeseries(Parser):
-    def __init__(self):
-        NotImplemented
+    # def __init__(self):
+    #     NotImplemented
 
     def Qem_history(self, nrg_path, species_names=None):
         time = []
