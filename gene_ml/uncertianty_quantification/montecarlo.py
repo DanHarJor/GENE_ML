@@ -66,7 +66,36 @@ class Montecarlo():
         self.plot_output_distribution(n_bins)
 
     
+import numpy as np
+from scipy.stats import entropy
 
+def relative_entropy(samples_p, samples_q, num_bins):
+    """
+    Calculate the relative entropy (Kullback-Leibler divergence) between two distributions.
+
+    Parameters:
+    samples_p (list or np.array): Samples from the first distribution.
+    samples_q (list or np.array): Samples from the second distribution.
+
+    Returns:
+    float: The relative entropy between the two distributions.
+    """
+    # Convert samples to numpy arrays
+    samples_p = np.array(samples_p)
+    samples_q = np.array(samples_q)
+
+    # Calculate the probability density functions
+    p_values, _ = np.histogram(samples_p, bins=num_bins, density=True)
+    q_values, _ = np.histogram(samples_q, bins=num_bins, density=True)
+
+    # Add a small value to avoid division by zero and log of zero
+    p_values += 1e-10
+    q_values += 1e-10
+
+    # Calculate the relative entropy
+    rel_entropy = entropy(p_values, q_values)
+
+    return rel_entropy
 
         
 
