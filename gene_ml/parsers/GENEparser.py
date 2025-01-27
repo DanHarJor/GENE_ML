@@ -144,6 +144,7 @@ class GENE_scan_parser(Parser):
         with self.open_file(parameters_path, 'r') as parameters_file:
             nml = f90nml.read(parameters_file)
         group, var = group_var
+        # print('DEBUG nml',nml)
         return nml[group][var]
         
     # def alter_parameters_file_old(self, parameters_path, group_var, value):
@@ -477,6 +478,7 @@ class GENE_scan_parser(Parser):
     def read_scanlog(self, scanlog_path=os.path.join('/scratch/project_462000451/daniel/AUGUQ/scanfiles0002/scan.log')):
         growthrate = []
         frequency = []
+        scanfiles_path = os.path.dirname(scanlog_path)
         with self.open_file(scanlog_path, 'r') as scanlog_file:
             head = scanlog_file.readline()
         # head.replace('\n','')
@@ -488,15 +490,19 @@ class GENE_scan_parser(Parser):
 
         with self.open_file(scanlog_path, 'r') as scanlog_file:
             df = pd.read_csv(scanlog_file, sep='|',skiprows=1, names=head)
-    
+
+        def int_to_suffix(number):
+            return f"{number:04d}"  
+
         for i in range(len(df)):
-            split = df[head[-1]][i].lstrip().rstrip().split(' ')      
+            split = df[head[-1]][i].lstrip().rstrip().split(' ')    
             growthrate.append(split[0])
             frequency.append(split[-1])
         df['growthrate'] = growthrate
         df['frequency'] = frequency
-        
-        df = df.drop(columns=[head[0],head[-1]])
+        df['scanfiles_path'] = [scanfiles_path] * len(df)
+        df['suffix'] = df['#Run'].apply(int_to_suffix)
+        df = df.drop(columns=[head[0], head[-1]])#,
         return df
     
     def read_run_time(self, geneerr_path):

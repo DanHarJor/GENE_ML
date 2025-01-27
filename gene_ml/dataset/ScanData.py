@@ -7,6 +7,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import pickle
 import warnings
+import matplotlib.pyplot as plt
+
 import re
 try:
     from .base import DataSet
@@ -305,7 +307,7 @@ class ScanData(DataSet):
 class ScanData2(DataSet):
     # paramiko update
     # update to include info about termination reason
-    def __init__(self, config, name=None, parser=None, sampler=None, save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None, categorise=False):
+    def __init__(self, config, name=None, parser=None, sampler=None, save_dir=None, scan_name='', split_ratio=[0.4,0.1,0.5], random_state=47, parameters_map=None, categorise=False, group_var_list=None):
         '''
         To retrieve data from the server remote path and host should be defined
         When the string ssh <host> is entered in to he command line a ssh terminal should be started.
@@ -323,6 +325,7 @@ class ScanData2(DataSet):
         self.random_state=random_state
         self.parameters_map = parameters_map
         self.categorise = categorise
+        self.group_var_list = group_var_list
         
         if save_dir != None:
             self.scanlog_df, self.rest_df = self.load_from_save_dir()
@@ -357,7 +360,7 @@ class ScanData2(DataSet):
         self.rest_df_no_nan = self.rest_df.loc[nan_mask]
         self.df_no_nan = self.df[nan_mask]
         self.head = list(self.scanlog_df_no_nan.columns)
-        self.x = self.scanlog_df_no_nan.drop(columns=['growthrate','frequency']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
+        self.x = self.scanlog_df_no_nan.drop(columns=['growthrate','frequency', 'scanfiles_path', 'suffix']).to_numpy(dtype=float)#self.df[self.head[0:-2]].to_numpy(dtype=float)
         self.growthrates = self.scanlog_df_no_nan['growthrate'].to_numpy(dtype=float)
         self.frequencies = self.scanlog_df_no_nan['frequency'].to_numpy(dtype=float)
         # self.run_time = self.rest_df_no_nan['run_time'].to_numpy(dtype=float)
@@ -454,6 +457,7 @@ class ScanData2(DataSet):
 
         ratio_eparticle_heat = particle_diff_e / (heat_diff_e + heat_diff_i)
         instability_rows = []
+        fingerprint_string = []
         
         # for i in range(len(diff_df)):
         #     if 0.2 < ratio_iheat_eheat[i] and ratio_iheat_eheat[i] < 10 and 0.2 < ratio_eparticle_eheat[i] and ratio_eparticle_eheat[i] < 10:
@@ -486,10 +490,14 @@ class ScanData2(DataSet):
                 inst.append('ITG/TEM')
             if len(inst) == 0:
                 inst.append('None')
+            print('DEBUG inst', inst, fingerprint_string)
             instability_rows.append(inst)
+            fingerprint_string.append('-'.join(inst))
+            # print('DEBUG inst', inst, fingerprint_string)
 
         df = pd.DataFrame()
         df['fingerprint'] = instability_rows
+        df['fingerprint_string'] = fingerprint_string
         df['ratio_iheat_eheat'] = ratio_iheat_eheat
         df['ratio_eparticle_eheat'] = ratio_eparticle_eheat
         return df
@@ -530,6 +538,22 @@ class ScanData2(DataSet):
 
         return pd.DataFrame({'categorisation':categorisation}) 
     
+    def grab_parameters(self, scanfiles_path, group_var_list):
+        files = os.listdir(scanfiles_path)
+        pattern = r'\d{4}'
+        matched_strings = []
+        for filename in files:
+            matches = re.findall(pattern, filename)
+            matched_strings.extend(matches)
+        suffix_s = np.unique(matched_strings)
+        parameters_files = [f'parameters_{suffix}' for suffix in suffix_s]
+        parameters_paths = [os.path.join(scanfiles_path, parameters_file) for parameters_file in parameters_files]
+        df_parameters = pd.DataFrame()
+
+        for group_var in group_var_list:
+            param_values = [self.parser.get_parameter_value(parameters_path, group_var) for parameters_path in parameters_paths]
+            df_parameters['-'.join(group_var)] = param_values
+        return df_parameters
     
     def kperp(self, scanfiles_path):
         # only set up to work for local files
@@ -580,11 +604,13 @@ class ScanData2(DataSet):
             categorise_df = self.final_categorisation(scanfiles_dir)
             kperp_df = self.kperp(scanfiles_dir)            
             mixing_length_df = pd.DataFrame()
-            concat_test = pd.concat([scanlog_df['growthrate'],kperp_df['avg_kperp_squared']], axis=1)
             mixing_length_df['mixing_length'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_squared']
             #print(time_df.index.duplicated().any(), reasons_df.index.duplicated().any(), fingerprints_df.index.duplicated().any(), em_cat_df.index.duplicated().any(), diff_df.index.duplicated().any(), fluxes_df.index.duplicated().any(), categorise_df.index.duplicated().any(), kperp_df.index.duplicated().any(), mixing_length_df.index.duplicated().any())
             rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df, kperp_df, mixing_length_df], axis=1) #
-            
+            if type(self.group_var_list) != type(None): 
+                parameters_df = self.grab_parameters(scanfiles_dir, self.group_var_list)
+                rest_df = pd.concat([rest_df, parameters_df], axis=1)
+
         else: rest_df = pd.DataFrame({'REST':np.repeat('rest', len(scanlog_df))})
 
 
@@ -711,7 +737,61 @@ class ScanData2(DataSet):
         self.df = joint_df
         self.set_from_df(df=joint_df,rest_df_ncol=rest_df_ncol)
         return self
+    
+    def plot_summary(self, include_categorisation=False, title=None):
+        nr, nc = 3, 1
+        w, h = 4, 4
+        fig, [ax1,ax2,ax4] = plt.subplots(nr,nc, figsize=(nc*w, nr*h), sharex=True)
+        
+        fingerprints_found = np.unique(self.df['fingerprint'])
+        df_filtered = self.df#self.df.iloc[::4]
 
+        ax1.plot(df_filtered['kymin1'],df_filtered['ratio_iheat_eheat'], 'b',label=f'$\chi_i/ \chi_e$')
+        ax1.plot(df_filtered['kymin1'],df_filtered['ratio_eparticle_eheat'], 'orange', label=f'$D_e/ \chi_e$')
+        ax1.set_title(title)
+        ax1.legend()
+
+        ax1t = ax1.twinx()
+        ax1t.plot(df_filtered['kymin1'],df_filtered['heat_electromagnetic_Electrons']/df_filtered['heat_electrostatic_Electrons'], color='red', label=r'$\frac{Q_{em}}{Q_{es}}$')
+        ax1t.set_ylabel(r'electron $\frac{Q_{em}}{Q_{es}}$')
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax1t.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+
+        def generate_distinct_colors(n, alpha=1.0):
+            colors = []
+            for i in range(n):
+                hue = i / n
+                color = plt.cm.hsv(hue)
+                color_with_alpha = (color[0], color[1], color[2], alpha)
+                colors.append(color_with_alpha)
+            return colors
+
+        colors = generate_distinct_colors(len(fingerprints_found), alpha=0.2)
+
+        ax2.plot(df_filtered['kymin1'].astype('float'), df_filtered['growthrate'].astype('float'), label='growthrate')
+        # ax2.set_xlabel('ky')
+        ax2.set_ylabel(r'growthrate  $\gamma$')
+
+        if include_categorisation:
+            fp_ky = self.df.groupby('fingerprint_string')['kymin1'].apply(list).to_dict()
+            for c, (fp, kys) in zip(colors, fp_ky.items()):
+                print('DEBUG FP',fp, kys)
+                ax2.vlines(kys, np.min(self.df['growthrate'].astype('float')), np.max(self.df['growthrate'].astype('float')), color=c, label=fp)
+        
+        ax2t = ax2.twinx()
+        ax2t.plot(df_filtered['kymin1'].astype('float'), df_filtered['mixing_length'].astype('float'), label='mixing length', color='orange')
+        # ax2t.set_xlabel('ky')
+        ax2t.set_ylabel(r'mixing_length $\frac{\gamma}{<k_\perp>^2}$')
+        # Combine legends
+        lines_1, labels_1 = ax2.get_legend_handles_labels()
+        lines_2, labels_2 = ax2t.get_legend_handles_labels()
+        ax2.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left')
+
+
+        ax4.plot(df_filtered['kymin1'].astype('float'), df_filtered['run_time'].astype('float'))
+        ax4.set_xlabel('ky')
+        ax4.set_ylabel('Walltime, s')
 
 
 
@@ -763,15 +843,15 @@ if __name__ == '__main__':
 #    save_dir = "/scratch/project_462000451/gene_out/gene_auto/testing_batchscans3"'SSG_2p_l3_uq'
     save_dir = "/scratch/project_462000451/gene_out/gene_auto/nan100"
     host = 'lumi'
-    #data_set = ScanData('100_3p', parser, ssh_path=ssh_path)
-    data_set = ScanData('testwithnan', parser, host, save_dir=save_dir)
+    #self = ScanData('100_3p', parser, ssh_path=ssh_path)
+    self = ScanData('testwithnan', parser, host, save_dir=save_dir)
     
 
-    print('HEAD',data_set.head)
-    print('POINTS', data_set.x)
-    print('GROWTHRATE', data_set.growthrates)
-    print('FREQUENCY', data_set.frequencies)    
+    print('HEAD',self.head)
+    print('POINTS', self.x)
+    print('GROWTHRATE', self.growthrates)
+    print('FREQUENCY', self.frequencies)    
 
-    print('df FIRST 5\n',data_set.df.head(5))
+    print('df FIRST 5\n',self.df.head(5))
 
     

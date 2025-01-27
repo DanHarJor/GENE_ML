@@ -16,6 +16,77 @@ from ...gene_ml.parsers.parser_timeseries import ParserTimeseries
 
 parser_ts = ParserTimeseries()
 
+def calculate_growthrate_raw(scanfiles_dir, suffix, calc_from_apar=False):
+    calc_from_apar=calc_from_apar
+    suffix = '_'+suffix
+    parameters_path = os.path.join(scanfiles_dir, f'parameters{suffix}')
+    
+    par = Parameters()
+    par.Read_Pars(parameters_path)
+    pars = par.pardict
+    
+
+    field = fieldfile(os.path.join(scanfiles_dir,'field'+suffix),pars)
+    field.set_time(field.tfld[-1])
+    imax = np.unravel_index(np.argmax(abs(field.phi()[:,0,:])),(field.nz,field.nx))
+    phi = np.empty(0,dtype='complex128')
+    if pars['n_fields'] > 1:
+        imaxa = np.unravel_index(np.argmax(abs(field.apar()[:,0,:])),(field.nz,field.nx))
+        apar = np.empty(0,dtype='complex128')
+
+    time = np.empty(0)
+    for i in range(len(field.tfld)):
+        field.set_time(field.tfld[i])
+        phi = np.append(phi,field.phi()[imax[0],0,imax[1]])
+        if pars['n_fields'] > 1:
+            apar = np.append(apar,field.apar()[imaxa[0],0,imaxa[1]])
+        time = np.append(time,field.tfld[i])
+    
+    if len(phi) < 2.0:
+        output_zeros = True
+        omega = 0.0+0.0J
+    else:
+        output_zeros = False
+        if calc_from_apar:
+            print( "Calculating omega from apar")
+            if pars['n_fields'] < 2:
+                NotImplemented
+                #stop
+            omega = np.log(apar/np.roll(apar,1))
+            dt = time - np.roll(time,1)
+            omega /= dt
+            omega = np.delete(omega,0)
+            time = np.delete(time,0)
+        else:
+            omega = np.log(phi/np.roll(phi,1))
+            dt = time - np.roll(time,1)
+            omega /= dt
+            omega = np.delete(omega,0)
+            time = np.delete(time,0)
+
+    gamma = np.real(omega)
+    omega = np.imag(omega)
+    
+    return gamma, time
+
+def correct_growthrate(gamma, gamma_time, Qes_e, Qes_e_time):
+    deltaQ = Qes_e - np.roll(Qes_e, 1)
+    ignore_times = Qes_e_time[np.argwhere(deltaQ < 1e-10)]
+    
+    # Check the gamma near the ignore times and removes ones that have dropped.
+    for t in ignore_times:
+        tdif = np.abs(gamma_time-t)
+        arg_t_closest = np.argmin(tdif)
+        # sometimes the closes to the ignore time is not the blip, so we take the min within 5 steps away
+        if arg_t_closest < 5:
+            arg_delete = arg_t_closest + np.argmin(gamma[0: arg_t_closest+5])
+        else:
+            arg_delete = arg_t_closest - 5 + np.argmin(gamma[arg_t_closest-5: arg_t_closest+5])
+        gamma = np.delete(gamma, arg_delete)
+        gamma_time = np.delete(gamma_time, arg_delete)
+
+    return gamma, gamma_time
+
 def calculate_growthrate2(scanfiles_dir, suffix, calc_from_apar=False):
     calc_from_apar=calc_from_apar
     suffix = '_'+suffix

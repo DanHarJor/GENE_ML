@@ -1,3 +1,9 @@
 [submodule "IFS_scripts"]
 	path = IFS_scripts
 	url = https://github.com/drdrhatch/IFS_scripts
+[submodule "pyrokinetics"]
+	path = pyrokinetics
+	url = git@github.com:pyro-kinetics/pyrokinetics.git
+[submodule "imaspy"]
+	path = imaspy
+	url = ssh://git@git.iter.org/imas/imaspy.git
