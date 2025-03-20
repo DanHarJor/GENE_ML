@@ -203,8 +203,10 @@ class GENE_scan_parser(Parser):
 
     def base_to_remote(self, remote_param_path, remote_sbatch_path):
         if self.config.local:
-            shutil.copy(self.base_params_path, remote_param_path)
-            shutil.copy(self.base_sbatch_path, remote_sbatch_path)
+            os.system(f'cp {self.base_params_path} {remote_param_path}')
+            os.system(f'cp {self.base_sbatch_path} {remote_sbatch_path}')
+            # shutil.copy(self.base_params_path, remote_param_path)
+            # shutil.copy(self.base_sbatch_path, remote_sbatch_path)
         else:
             print('PLACING BASE PARAMETERS AND SBATCH TO REMOTE PROBLEM DIRECTORY')
             self.config.paramiko_sftp_client.put(self.base_params_path, remote_param_path)
