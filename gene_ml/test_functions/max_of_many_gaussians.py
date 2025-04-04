@@ -163,9 +163,10 @@ class MaxOfManyGaussians():
             ax.set_xlabel(f'{which2[0]}')
             ax.set_ylabel(f'{which2[1]}')
             fig.show()
+
             
 
-    def plot_2d_gaussians(self, ax, grid_size=100, onlyContour=False, plot_bounds=None, extra=0, sample_points=None, title=None):
+    def plot_2d_gaussians(self, ax, grid_size=100, ax_3d=None, plot_bounds=None, extra=0, sample_points=None, title=None, new_eval=None):
         if plot_bounds == None:
             plot_bounds = self.bounds
         if self.num_dim != 2:
@@ -176,9 +177,18 @@ class MaxOfManyGaussians():
         y = np.linspace(ylow, yhigh, grid_size)
         X, Y = np.meshgrid(x, y)
         pos = np.dstack((X, Y))
-                
-        
-        Zmax = self.evaluate(pos)
+
+        Zmax_flat = []
+        pos_flat = []
+        if new_eval != None:
+            Zmax = np.zeros_like(X)
+            for i in range(X.shape[0]):
+                for j in range(X.shape[1]):
+                    Zmax[i, j] = new_eval((X[i, j], Y[i, j]))
+                    Zmax_flat.append(Zmax[i,j])
+                    pos_flat.append((X[i,j], Y[i,j]))
+        else:
+            Zmax = self.evaluate(pos)
         
         z = []
         yy = 0.5
@@ -187,17 +197,19 @@ class MaxOfManyGaussians():
             z.append(g.pdf(x_at_y))
         zmax = np.max(np.stack(z), axis = 0)
         #slice
-        if not onlyContour:
-            plt.figure()
-            plt.plot(x, zmax)
-            plt.show()
+        if type(ax_3d) != type(None):
+            ax_3d = convert_to_3d(ax_3d)
             
-            fig = plt.figure()
-            ax_3d = fig.add_subplot(111, projection='3d')
+            # plt.figure()
+            # plt.plot(x, zmax)
+            # plt.show()
+            
+            # fig = plt.figure()
+            # ax_3d = fig.add_subplot(111, projection='3d')
             ax_3d.plot_surface(X, Y, Zmax, cmap='viridis')
             ax_3d.set_xlabel('X')
             ax_3d.set_ylabel('Y')
-            ax_3d.set_zlabel('Function Value')
+            # ax_3d.set_zlabel('Function Value')
             # ax_3d.set_title('2D Surface of Multimodal Multivariate Gaussian Distribution')
             ax_3d.view_init(elev=30, azim=30-90)
 
@@ -209,10 +221,11 @@ class MaxOfManyGaussians():
             ax.scatter(*sample_points, marker='.')
         
         ax.contour(X,Y,Zmax)
-        ax.set_xlim(0,1)
-        ax.set_ylim(0,1)
+        ax.set_xlim(*plot_bounds[0])
+        ax.set_ylim(*plot_bounds[1])
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
+        return Zmax_flat, pos_flat
         
 
     # def do_UQ(self, n_samples, n_bins):
@@ -227,6 +240,13 @@ class MaxOfManyGaussians():
     #     montecarlo.compute_output_distribution(n_samples)
     #     montecarlo.plot_output_distribution(n_bins)
 
+def convert_to_3d(ax):
+    fig = ax.figure
+    pos = ax.get_position()
+    ax.remove()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_position(pos)
+    return ax
 
 if __name__ == '__main__':
     seed = 10
