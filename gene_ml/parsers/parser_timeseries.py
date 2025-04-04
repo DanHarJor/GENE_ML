@@ -32,7 +32,7 @@ class ParserTimeseries(Parser):
         time = []
         species_number=1
         Qes = {}
-        with self.open_file(nrg_path, 'r') as nrg_file:
+        with open(nrg_path, 'r') as nrg_file:
             # do loop once to initiate Qes dict
             for line in nrg_file:
                 row = line.split(' ')

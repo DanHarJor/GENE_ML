@@ -21,7 +21,10 @@ except:
 sys.path.append(os.path.join('GENE_ML','IFS_scripts'))
 from GENE_ML.IFS_scripts.geomWrapper import calc_kperp_omd, init_read_geometry_file
 from GENE_ML.IFS_scripts.parIOWrapper import init_read_parameters_file
-    
+# from GENE_ML.IFS_scripts.fieldHelper import fieldfile, field_xz
+
+from TPED.projects.GENE_sim_reader.archive.ARCHIVE_GENE_field_data import GeneField as GF
+from TPED.projects.GENE_sim_reader.utils.find_GENE_files import GeneFileFinder as GFF
 
 class ScanData(DataSet):
     def __init__(self, name, parser, config, sampler=None, host=None, remote_save_dir=None, scan_name='', test_percentage=50, random_state=47, parameters_map=None, scan_files_target = 'all'):
@@ -565,6 +568,8 @@ class ScanData2(DataSet):
             matches = re.findall(pattern, filename)
             matched_strings.extend(matches)
         suffix_s = np.unique(matched_strings)
+        
+        field_paths = GFF(scanfiles_path).find_files('field')
 
         with self.parser.open_file(os.path.join(scanfiles_path, 'scan.log'), 'r') as file:
             line_count = sum(1 for line in file)
@@ -572,19 +577,36 @@ class ScanData2(DataSet):
         os.chdir(scanfiles_path)
         all_suffix_s = [str(number).zfill(4) for number in range(1,line_count)]
 
-        avg_kperp_squared_s = []
-        for suffix in all_suffix_s:
+        avg_kperp_squared_s_phi = []
+        avg_kperp_squared_s_A = []
+        for suffix, field_path in zip(all_suffix_s, field_paths):
             if suffix in suffix_s:
                 print('DEBUG EXTRA 2', suffix)
                 pars = init_read_parameters_file('_'+suffix)
+                field = GF(field_path)
+                field_dict = field.field_filepath_to_dict(time_criteria='last')
+                zgrid = field_dict['zgrid']
+                apar = np.abs(field_dict['field_apar'][-1])
+                phi = np.abs(field_dict['field_phi'][-1])
+                
+
+                
                 geom_type, geom_pars, geom_coeff = init_read_geometry_file('_'+suffix,pars)
                 kperp, omd_curv, omd_gradB = calc_kperp_omd(geom_type,geom_coeff,pars,False,False)
-                avg_kperp_squared = np.mean(np.array(kperp)**2)
-                avg_kperp_squared_s.append(avg_kperp_squared)
-                print('DEBUG EXTRA 2, avg_kperpsq', avg_kperp_squared)
+                
+                avg_kperp_squared_phi = np.sum((phi/np.sum(phi)) * kperp**2)
+                avg_kperp_squared_A = np.sum((apar/np.sum(apar)) * kperp**2)
+                
+                print('='*100,'TEST, THIS SHOULD BE ONE:',np.sum(phi/np.sum(phi)))
+                                
+                # avg_kperp_squared = np.mean(np.array(kperp)**2)
+                avg_kperp_squared_s_phi.append(avg_kperp_squared_phi)
+                avg_kperp_squared_s_A.append(avg_kperp_squared_A)
+                print('DEBUG EXTRA 2, avg_kperpsq', avg_kperp_squared_A)
             else:
-                avg_kperp_squared_s.append(np.nan)
-        kperp_df = pd.DataFrame({'avg_kperp_squared':avg_kperp_squared_s})
+                avg_kperp_squared_s_phi.append(np.nan)
+                avg_kperp_squared_s_A.append(np.nan)
+        kperp_df = pd.DataFrame({'avg_kperp_sq_phi':avg_kperp_squared_s_phi, 'avg_kperp_sq_A': avg_kperp_squared_s_A })
         return kperp_df
 
         
@@ -604,7 +626,9 @@ class ScanData2(DataSet):
             categorise_df = self.final_categorisation(scanfiles_dir)
             kperp_df = self.kperp(scanfiles_dir)            
             mixing_length_df = pd.DataFrame()
-            mixing_length_df['mixing_length'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_squared']
+            mixing_length_df['mixing_length_phi'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_sq_phi']
+            mixing_length_df['mixing_length_A'] = scanlog_df['growthrate'].to_numpy(dtype=float)/kperp_df['avg_kperp_sq_A']
+            
             #print(time_df.index.duplicated().any(), reasons_df.index.duplicated().any(), fingerprints_df.index.duplicated().any(), em_cat_df.index.duplicated().any(), diff_df.index.duplicated().any(), fluxes_df.index.duplicated().any(), categorise_df.index.duplicated().any(), kperp_df.index.duplicated().any(), mixing_length_df.index.duplicated().any())
             rest_df = pd.concat([time_df, reasons_df, fingerprints_df, em_cat_df, diff_df, fluxes_df, categorise_df, kperp_df, mixing_length_df], axis=1) #
             if type(self.group_var_list) != type(None): 
@@ -754,6 +778,7 @@ class ScanData2(DataSet):
         ax1t = ax1.twinx()
         ax1t.plot(df_filtered['kymin1'],df_filtered['heat_electromagnetic_Electrons']/df_filtered['heat_electrostatic_Electrons'], color='red', label=r'$\frac{Q_{em}}{Q_{es}}$')
         ax1t.set_ylabel(r'electron $\frac{Q_{em}}{Q_{es}}$')
+        ax1t.set_yscale('log')
         lines1, labels1 = ax1.get_legend_handles_labels()
         lines2, labels2 = ax1t.get_legend_handles_labels()
         ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
@@ -782,6 +807,7 @@ class ScanData2(DataSet):
         ax2t = ax2.twinx()
         ax2t.plot(df_filtered['kymin1'].astype('float'), df_filtered['mixing_length'].astype('float'), label='mixing length', color='orange')
         # ax2t.set_xlabel('ky')
+        ax2t.set_yscale('log')
         ax2t.set_ylabel(r'mixing_length $\frac{\gamma}{<k_\perp>^2}$')
         # Combine legends
         lines_1, labels_1 = ax2.get_legend_handles_labels()

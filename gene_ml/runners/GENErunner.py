@@ -7,7 +7,7 @@ import re
 from ..tools import sec_to_time_format
 import time
 class GENErunner():
-    def __init__(self, parser, config, remote_save_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None):
+    def __init__(self, parser, config, remote_save_dir, time_model=None, single_run_timelim=None, single_run_simtimelim=None, no_sbatch_run=False):
         self.parser=parser
         self.host = config.host
         self.single_run_timelim = single_run_timelim
@@ -18,6 +18,8 @@ class GENErunner():
         #self.local_run_files_dir = config.local_run_files_dir
         self.max_wallseconds = 0
         self.config = config
+        
+        self.no_sbatch_run = no_sbatch_run
 
         self.remote_save_dir = remote_save_dir
 
@@ -95,7 +97,10 @@ class GENErunner():
         print('MAKING PARSER REMOTE SAVE DIRECTORY,', remote_save_dir_run_id)
         
         remote_problem_dir = os.path.join(self.remote_run_dir, f'auto_prob_{run_id}') 
-        run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
+        if self.no_sbatch_run:
+            run_command = f"cd {self.remote_run_dir}/auto_prob_{run_id} && export MEMORY_PER_CORE=1800 && export OMP_NUM_THREADS=1 && export HDF5_USE_FILE_LOCKING=FALSE && set -x && srun -l -K -n 128 ./gene_lumi_csc && set +x"#"./scanscript --np $SLURM_NTASKS --ppn $SLURM_NTASKS_PER_NODE --mps 4 --syscall='srun -l -K -n $SLURM_NTASKS ./gene_lumi_csc'"
+        else:
+            run_command = f'cd {self.remote_run_dir}/auto_prob_{run_id} && sbatch submit.cmd; exit'
         if self.config.local:
             mkdir_result = subprocess.run(mkdir_command, shell=True, capture_output=True, text=True)
             mkdir_out = mkdir_result.stdout
@@ -114,12 +119,12 @@ class GENErunner():
             err = stderr.read().decode('utf8')
 
         print('RESULT OF MAKING REMOTE SAVE DIRECTORY,', mkdir_out, mkdir_err)
-
+        print('RESULT OF TRYING TO RUN THE CODE')
         print('OUT:', out, 'ERROR?:', err)        
-        sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
-        print('OUT:', out, 'ERROR?:', err)
-        print('SUBMITTED SBATCH ID:', sbatch_id)
-        return sbatch_id
+        # sbatch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
+        # print('OUT:', out, 'ERROR?:', err)
+        # print('SUBMITTED SBATCH ID:', sbatch_id)
+        # return sbatch_id
     
     # def kill_runs(self, sbatch_ids):
     #     print('\n KILLING SBATCH IDS',sbatch_ids)
@@ -242,17 +247,17 @@ class GENErunner():
     def continue_with_increased_omega_prec():
         None
 
-    def continue_run(self, run_id):
-        # if 
-        print('CONTINUING RUN -', run_id)
-        continue_command = f'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} &&sbatch continue.cmd; exit'
-        stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(continue_command)
-        out = stdout.read().decode('utf8')
-        err = stderr.read().decode('utf8')
-        print('OUT:',out, 'ERR:',err)
-        batch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
-        print('SUBMITTED SBATCH ID:', batch_id)
-        return batch_id    
+    # def continue_run(self, run_id):
+    #     # if 
+    #     print('CONTINUING RUN -', run_id)
+    #     continue_command = f'cd {os.path.join(self.remote_run_dir,'auto_prob_'+run_id)} && sbatch continue.cmd; exit'
+    #     stdin, stdout, stderr = self.config.paramiko_ssh_client.exec_command(continue_command)
+    #     out = stdout.read().decode('utf8')
+    #     err = stderr.read().decode('utf8')
+    #     print('OUT:',out, 'ERR:',err)
+    #     batch_id = re.search('(?<![\d])\d{7}(?![\d])', out).group(0)
+    #     print('SUBMITTED SBATCH ID:', batch_id)
+    #     return batch_id    
 
     def continue_with_new_param(self, run_ids, group_var, value, perform_status_check=True):
         print(f'CONTINUING RUN {run_ids}\n with new {group_var}:{value}')
