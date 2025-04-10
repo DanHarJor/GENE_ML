@@ -1,16 +1,18 @@
 [submodule "IFS_scripts"]
 	path = IFS_scripts
-	url = https://github.com/drdrhatch/IFS_scripts
+	url = git@github.com:drdrhatch/IFS_scripts.git
 [submodule "pyrokinetics"]
 	path = pyrokinetics
 	url = git@github.com:pyro-kinetics/pyrokinetics.git
 [submodule "imaspy"]
 	path = imaspy
 	url = ssh://git@git.iter.org/imas/imaspy.git
-
 [submodule "enchanted-surrogates"]
 	path = enchanted-surrogates
 	url = git@github.com:DIGIfusion/enchanted-surrogates.git
+[submodule "static_sparse_grid_approximations"]
+	path = gene_ml/static_sparse_grid_approximations
+	url = git@github.com:ionutfarcas/static_sparse_grid_approximations.git
 [submodule "sensitivity-driven-sparse-grid-approx"]
 	path = sensitivity-driven-sparse-grid-approx
 	url = git@github.com:ionutfarcas/sensitivity-driven-sparse-grid-approx.git
