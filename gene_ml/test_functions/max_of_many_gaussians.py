@@ -12,7 +12,18 @@ from GENE_ML.gene_ml.uncertianty_quantification.montecarlo import Montecarlo
 
 
 class MaxOfManyGaussians():
-    def __init__(self, num_dim, num_gaussians, bounds=None, mean_bounds=None, std_bounds=None, seed=42):
+    def __init__(self, num_dim, bounds):
+        self.num_dim = num_dim
+        self.bounds = bounds
+            
+    def specify_gaussians(self, means, stds):
+        self.gaussians = []
+        for mean, std in zip(means, stds):
+            print('debug tuple', type(np.array(std)**2))
+            cov = np.diag(np.array(std)**2)
+            self.gaussians.append(multivariate_normal(mean, cov))   
+
+    def random_gaussians(self, num_dim, num_gaussians, bounds=None, mean_bounds=None, std_bounds=None, seed=42):
         self.num_dim = num_dim
         self.num_gaussians = num_gaussians
         if type(bounds) == type(None):
@@ -27,7 +38,6 @@ class MaxOfManyGaussians():
         
         self.rg = np.random.default_rng(seed=seed)
         self.gaussians = self.generate_gaussians()
-
     def generate_gaussians(self):
         gaussians = []
         # Generate multiple Gaussians
@@ -36,7 +46,8 @@ class MaxOfManyGaussians():
             for b in self.mean_bounds:
                 mean.append(self.rg.uniform(*b, 1)[0])
             mean = np.array(mean)
-            cov_bounds = self.std_bounds
+            cov_bounds = self.std_bounds**2
+            cov_bounds = cov_bounds.T
             # cov = self.rg.uniform(*cov_bounds, (self.num_dim, self.num_dim))
             # cov = np.dot(cov, cov.T)  # Ensure the covariance matrix is positive semi-definite
             cov = np.diag(self.rg.uniform(*cov_bounds, (self.num_dim,self.num_dim)))
@@ -155,7 +166,7 @@ class MaxOfManyGaussians():
             fig.show()
             
 
-    def plot_2d_gaussians(self, grid_size=100, onlyContour=False, plot_bounds=None, extra=0):
+    def plot_2d_gaussians(self, ax, grid_size=100, onlyContour=False, plot_bounds=None, extra=0, sample_points=None, title=None):
         if plot_bounds == None:
             plot_bounds = self.bounds
         if self.num_dim != 2:
@@ -183,20 +194,27 @@ class MaxOfManyGaussians():
             plt.show()
             
             fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
-            ax.plot_surface(X, Y, Zmax, cmap='viridis')
-            ax.set_xlabel('X')
-            ax.set_ylabel('Y')
-            ax.set_zlabel('Function Value')
-            # ax.set_title('2D Surface of Multimodal Multivariate Gaussian Distribution')
-            ax.view_init(elev=30, azim=30-90)
+            ax_3d = fig.add_subplot(111, projection='3d')
+            ax_3d.plot_surface(X, Y, Zmax, cmap='viridis')
+            ax_3d.set_xlabel('X')
+            ax_3d.set_ylabel('Y')
+            ax_3d.set_zlabel('Function Value')
+            # ax_3d.set_title('2D Surface of Multimodal Multivariate Gaussian Distribution')
+            ax_3d.view_init(elev=30, azim=30-90)
 
-        fig = plt.figure(figsize=(4,4))
-        plt.contour(X,Y,Zmax)
-        plt.xlim(0,1)
-        plt.ylim(0,1)
-        plt.xlabel('X')
-        plt.ylabel('Y')
+        
+        # fig = plt.figure(figsize=(10,10))
+        if title != None:
+            ax.set_title(title)
+        if type(sample_points) != type(None):
+            ax.scatter(*sample_points, marker='.')
+        
+        ax.contour(X,Y,Zmax)
+        ax.set_xlim(0,1)
+        ax.set_ylim(0,1)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        
 
     # def do_UQ(self, n_samples, n_bins):
     #     #This assums each dimensions is centered around a nominal value and the bounds are uncertanties.

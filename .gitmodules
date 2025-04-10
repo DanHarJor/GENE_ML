@@ -10,3 +10,6 @@
 [submodule "enchanted-surrogates"]
 	path = enchanted-surrogates
 	url = git@github.com:DIGIfusion/enchanted-surrogates.git
+[submodule "sensitivity-driven-sparse-grid-approx"]
+	path = sensitivity-driven-sparse-grid-approx
+	url = git@github.com:ionutfarcas/sensitivity-driven-sparse-grid-approx.git

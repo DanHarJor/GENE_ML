@@ -12,12 +12,11 @@ from sparseSpACE.GridOperation import *
 
 class SparseSpACE_1D():
     def __init__(self, function, regressor, random_state=42):
-                        
         self.function = function
         self.regressor = regressor # must have a fit, predict function. predict must return uncertainty
         self.integrals = []
         self.rmse_s = []
-        self.integrals_dif = None
+        self.integrals_dif = None    
 
     def generate_samples(self, num_samples, X_range, initial_X=None, initial_y=None, test_mode=False, integration_interval=None, plot_interval=None):
         # Sparse space function needs to have eval def
@@ -36,7 +35,7 @@ class SparseSpACE_1D():
                 if any(np.array(X) >= self.b) or any(np.array(X) <= self.a):
                     return 0
                 else:
-                    return np.sin(X)
+                    return self.function(X)#np.sin(X)
             
             # def __call__(self,X):
             #     return np.sin(X)

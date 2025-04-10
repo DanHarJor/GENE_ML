@@ -36,9 +36,10 @@ class MaxOfManyGaussians():
             for b in self.mean_bounds:
                 mean.append(self.rg.uniform(*b, 1)[0])
             mean = np.array(mean)
-            cov_bounds = self.std_bounds
+            cov_bounds = self.std_bounds**2
             # cov = self.rg.uniform(*cov_bounds, (self.num_dim, self.num_dim))
             # cov = np.dot(cov, cov.T)  # Ensure the covariance matrix is positive semi-definite
+            print('CB',cov_bounds)
             cov = np.diag(self.rg.uniform(*cov_bounds, (self.num_dim,self.num_dim)))
             gaussians.append(multivariate_normal(mean, cov))
         return gaussians
