@@ -7,6 +7,7 @@
 [submodule "imaspy"]
 	path = imaspy
 	url = ssh://git@git.iter.org/imas/imaspy.git
+
 [submodule "enchanted-surrogates"]
 	path = enchanted-surrogates
 	url = git@github.com:DIGIfusion/enchanted-surrogates.git
